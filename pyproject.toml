@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "videosrecomendados"
+version = "0.1.0"
+description = ""
+authors = ["Lueyo <84575656+lueyo@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = {extras = ["standard"], version = "^0.116.1"}
+pymongo = "^4.14.1"
+numpy = "^2.3.3"
+motor = "^3.7.1"
+requests = "^2.32.5"
+beautifulsoup4 = "^4.14.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
