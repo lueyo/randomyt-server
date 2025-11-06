@@ -148,15 +148,12 @@ def obtener_datos_youtube(video_id):
                         "views": vistas,
                     }
     except Exception:
-        pass
+        
 
-    # --- FALLBACK FINAL: valores por defecto ---
-    return {
-        "titulo": "Desconocido",
-        "fecha_subida": datetime.utcnow(),
-        "tags": [],
-        "views": 0,
-    }
+    # --- FALLBACK FINAL: da error ---
+        raise ValueError("No se pudieron obtener los datos del video de YouTube.")
+    
+    
 
 
 # Ejemplo de uso
