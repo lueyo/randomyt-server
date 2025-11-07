@@ -31,10 +31,7 @@ class VideoRepository(IVideoRepository):
         video_dict = video_model.dict()
         if "id" in video_dict:
             video_dict["_id"] = video_dict.pop("id")
-        # Check if video with this ID already exists
-        existing = await db_client.videos.find_one({"_id": video_dict["_id"]})
-        if existing:
-            raise ValueError("Video is already in the database")
+
         video_db = VideoDB(**video_dict)
         result = await db_client.videos.insert_one(video_db.dict(by_alias=True))
         return str(result.inserted_id)

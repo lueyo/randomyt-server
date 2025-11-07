@@ -1,6 +1,5 @@
 from common.utils.genid import gen_id
 from common.utils.scriptscrapper import obtener_datos_youtube
-from common.utils.youtube_video_id_validator import validate_youtube_video_id
 from models.domain.video_model import VideoModel
 from models.controller.input.publish_video_request import PublishVideoRequest
 from abc import ABC, abstractmethod
@@ -33,9 +32,10 @@ class VideoService(IVideoService):
         self.video_repository = video_repository
 
     async def publish_video(self, request: PublishVideoRequest) -> str:
-        # Validate YouTube video ID
-        if not validate_youtube_video_id(request.video_id):
-            raise ValueError("Invalid YouTube video ID")
+        # Check if video already exists in database
+        existing_video = await self.video_repository.get_video_by_id(request.video_id)
+        if existing_video:
+            raise ValueError("Video is in database")
 
         try:
             # Scrape data from YouTube
