@@ -7,6 +7,7 @@ from models.controller.input.publish_video_request import PublishVideoRequest
 from service.VideoService import VideoService, IVideoService
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import  RedirectResponse
 
 app = FastAPI(
     title="VideoRandom API",
@@ -20,6 +21,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def root():
+    """
+    Root endpoint.
+
+    This endpoint serves as a basic health check for the API.
+
+    Returns:
+    - A redirect response to the RandomYT web application.
+    """
+    return RedirectResponse(url="https://beta.lueyo.es/randomyt/?p=create")
 
 @app.get("/ping")
 async def ping():

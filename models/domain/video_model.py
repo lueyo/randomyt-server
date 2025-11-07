@@ -1,3 +1,4 @@
+from common.utils.youtube_video_id_validator import validate_youtube_video_id
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import List
