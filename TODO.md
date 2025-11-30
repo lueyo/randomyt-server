@@ -1,3 +1,0 @@
-- [ ] Extract each scraping method into separate functions: obtener_datos_youtube_directo, obtener_datos_youtube_noembed, obtener_datos_youtube_oembed, obtener_datos_youtube_lemnos
-- [ ] Refactor obtener_datos_youtube to call these separate functions in order
-- [ ] Update the if __name__ == "__main__": block to test each method separately and print results
