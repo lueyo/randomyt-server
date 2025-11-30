@@ -7,7 +7,7 @@ from models.controller.input.publish_video_request import PublishVideoRequest
 from service.VideoService import VideoService, IVideoService
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import  RedirectResponse
+from fastapi.responses import RedirectResponse
 
 app = FastAPI(
     title="VideoRandom API",
@@ -22,6 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 async def root():
     """
@@ -33,6 +34,7 @@ async def root():
     - A redirect response to the RandomYT web application.
     """
     return RedirectResponse(url="https://beta.lueyo.es/randomyt/?p=create")
+
 
 @app.get("/ping")
 async def ping():
@@ -136,3 +138,21 @@ async def get_video(
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     return VideoSchema(**video.dict())
+
+
+@app.get("/count")
+async def get_video_count(
+    videoService: IVideoService = Depends(get_video_service),
+):
+    """
+    Retrieves the total number of videos in the database.
+
+    This endpoint returns the count of all video documents.
+
+    - **videoService**: Dependency-injected service for handling video operations.
+
+    Returns:
+    - A dictionary with the count of videos.
+    """
+    count = await videoService.count_videos()
+    return {"count": count}

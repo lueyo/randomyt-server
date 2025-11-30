@@ -24,6 +24,10 @@ class IVideoRepository(ABC):
     async def get_video_by_id(self, video_id: str) -> VideoModel:
         pass
 
+    @abstractmethod
+    async def count_videos(self) -> int:
+        pass
+
 
 class VideoRepository(IVideoRepository):
 
@@ -75,3 +79,6 @@ class VideoRepository(IVideoRepository):
             return VideoModel(**video_db_data)
         else:
             return None
+
+    async def count_videos(self) -> int:
+        return await db_client.videos.count_documents({})
