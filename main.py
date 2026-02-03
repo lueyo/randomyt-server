@@ -57,7 +57,7 @@ async def publish_video(
     """
     Publishes a new YouTube video.
 
-    This endpoint allows users to submit a new YouTube video by its ID. The video data will be scraped from YouTube. If video has more than 2000 views, an error will be returned.
+    This endpoint allows users to submit a new YouTube video by its ID. The video data will be scraped from YouTube. If video has more than LIMIT_VIEWS views, an error will be returned.
 
     - **request**: Pydantic model containing the video ID.
       - **video_id**: The YouTube video ID (required, string, 11 characters).

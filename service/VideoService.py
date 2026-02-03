@@ -1,3 +1,4 @@
+from common.config import LIMIT_VIEWS
 from common.utils.genid import gen_id
 from common.utils.scriptscrapper import obtener_datos_youtube
 from models.domain.video_model import VideoModel
@@ -48,8 +49,8 @@ class VideoService(IVideoService):
             raise ValueError("Failed to retrieve video information")
 
         # Check views limit
-        if datos["views"] > 2000:
-            raise ValueError("Video has more than 2000 views")
+        if datos["views"] > LIMIT_VIEWS:
+            raise ValueError("Video has more than LIMIT_VIEWS views")
 
         # Validate scraped data
         if not datos["titulo"] or not isinstance(datos["titulo"], str):

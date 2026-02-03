@@ -1,3 +1,4 @@
+from common.config import LIMIT_VIEWS
 from common.utils.youtube_video_id_validator import validate_youtube_video_id
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
@@ -14,7 +15,7 @@ class VideoModel(BaseModel):
     tags: List[str] = Field(default_factory=list)
     views: int = Field(
         ...,
-        le=2000,
+        le=LIMIT_VIEWS,
         description="Número de visualizaciones del video, no puede ser superior a 2000",
     )
 
