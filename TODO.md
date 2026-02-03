@@ -1,28 +1,26 @@
-# TODO: Implement random video by day/interval query params
+# TODO: Encapsular Query Params en Clases DTO
 
-## Step 1: Update repository (VideoRepository.py)
-- [x] Add `get_random_video_by_day(day: datetime) -> Optional[VideoModel]`
-- [x] Add `get_random_video_by_interval(start_day: datetime, end_day: datetime) -> Optional[VideoModel]`
-- [x] Add `get_random_video_by_day_exclude_ids(day: datetime, exclude_ids: List[str]) -> Optional[VideoModel]`
-- [x] Add `get_random_video_by_interval_exclude_ids(start_day: datetime, end_day: datetime, exclude_ids: List[str]) -> Optional[VideoModel]`
+## Paso 1: Crear clases DTO en query_params.py
+- [x] Crear SearchDayQueryParamsDTO con validaciones
+- [x] Crear SearchIntervalQueryParamsDTO con validaciones
+- [x] Crear RandomByDayQueryParamsDTO con validaciones
+- [x] Crear RandomByIntervalQueryParamsDTO con validaciones
 
-## Step 2: Update service (VideoService.py)
-- [x] Add abstract methods `get_random_video_by_day` and `get_random_video_by_interval` to IVideoService
-- [x] Add abstract methods `get_random_video_by_day_exclude_ids` and `get_random_video_by_interval_exclude_ids` to IVideoService
-- [x] Implement `get_random_video_by_day` in VideoService
-- [x] Implement `get_random_video_by_interval` in VideoService
-- [x] Implement `get_random_video_by_day_exclude_ids` in VideoService
-- [x] Implement `get_random_video_by_interval_exclude_ids` in VideoService
+## Paso 2: Actualizar main.py
+- [x] Actualizar endpoint /random para usar RandomByDayQueryParamsDTO
+- [x] Actualizar endpoint PUT /random para usar RandomByDayQueryParamsDTO y RandomByIntervalQueryParamsDTO
+- [x] Actualizar endpoint /search-day para usar SearchDayQueryParamsDTO
+- [x] Actualizar endpoint /search-interval para usar SearchIntervalQueryParamsDTO
 
-## Step 3: Update endpoints (main.py)
-- [x] Update GET /random with optional query params: day, startDay, endDay
-- [x] Update PUT /random with same optional query params
-- [x] Add validation logic: if day is present, use it; otherwise use startDay/endDay
-- [x] Maintain original behavior when no query params are provided
+## Paso 3: Actualizar IVideoService y VideoService
+- [x] Actualizar firmas de métodos en IVideoService
+- [x] Actualizar firmas de métodos en VideoService
+- [x] Agregar métodos DTO en VideoService
+- [x] Mantener métodos legacy para compatibilidad
 
-## Step 4: Verify implementation
-- [x] Run syntax check on the code
+## Paso 4: Verificar Repository
+- [x] Verificar que VideoRepository no requiera cambios (ya trabaja con datetime)
 
-All tasks completed successfully!
-
+## Verificación
+- [ ] Verificar sintaxis con python -m py_compile
 

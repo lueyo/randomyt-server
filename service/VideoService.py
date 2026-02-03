@@ -3,6 +3,12 @@ from common.utils.genid import gen_id
 from common.utils.scriptscrapper import obtener_datos_youtube
 from models.domain.video_model import VideoModel
 from models.controller.input.publish_video_request import PublishVideoRequest
+from models.controller.input.query_params import (
+    SearchDayQueryParamsDTO,
+    SearchIntervalQueryParamsDTO,
+    RandomByDayQueryParamsDTO,
+    RandomByIntervalQueryParamsDTO,
+)
 from models.controller.output.page_model import PageModel
 from abc import ABC, abstractmethod
 from repository.VideoRepository import VideoRepository
@@ -31,6 +37,37 @@ class IVideoService(ABC):
     async def count_videos(self) -> int:
         pass
 
+    @abstractmethod
+    async def search_by_day_dto(self, params: SearchDayQueryParamsDTO) -> PageModel:
+        pass
+
+    @abstractmethod
+    async def search_by_interval_dto(
+        self, params: SearchIntervalQueryParamsDTO
+    ) -> PageModel:
+        pass
+
+    @abstractmethod
+    async def get_random_video_by_dto(
+        self, params: RandomByDayQueryParamsDTO | RandomByIntervalQueryParamsDTO
+    ) -> Optional[VideoModel]:
+        pass
+
+    @abstractmethod
+    async def get_random_video_by_dto_exclude_ids(
+        self,
+        params: RandomByDayQueryParamsDTO | RandomByIntervalQueryParamsDTO,
+        exclude_ids: List[str],
+    ) -> Optional[VideoModel]:
+        pass
+
+    @abstractmethod
+    async def get_random_video_by_day_exclude_ids_dto(
+        self, params: RandomByDayQueryParamsDTO, exclude_ids: List[str]
+    ) -> Optional[VideoModel]:
+        pass
+
+    # Legacy methods (for backward compatibility)
     @abstractmethod
     async def search_by_day(
         self, day: str, page: int, pageSize: int, sort: str = "asc"
@@ -115,6 +152,196 @@ class VideoService(IVideoService):
 
     async def count_videos(self) -> int:
         return await self.video_repository.count_videos()
+
+    # ===== DTO-based methods =====
+
+    async def search_by_day_dto(self, params: SearchDayQueryParamsDTO) -> PageModel:
+        """
+        Busca videos subidos en un día específico usando DTO.
+
+        Args:
+            params: DTO con día, página, pageSize y orden
+
+        Returns:
+            PageModel con los resultados paginados
+        """
+        # Parsear la fecha del formato dd/MM/YYYY (validado por el DTO)
+        try:
+            day_date = datetime.strptime(params.day, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid date format. Expected dd/MM/YYYY")
+
+        # Calcular skip para paginación
+        skip = (params.page - 1) * params.pageSize
+
+        # Buscar videos
+        videos, total = await self.video_repository.search_by_day(
+            day_date, skip, params.pageSize, params.sort
+        )
+
+        # Calcular páginas
+        total_pages = (
+            (total + params.pageSize - 1) // params.pageSize if total > 0 else 0
+        )
+
+        # Construir respuesta
+        next_page: Optional[int] = (
+            params.page + 1 if params.page < total_pages else None
+        )
+        previous_page: Optional[int] = params.page - 1 if params.page > 1 else None
+
+        return PageModel(
+            results=total,
+            currentPage=params.page,
+            pageSize=params.pageSize,
+            nextPage=next_page,
+            previousPage=previous_page,
+        )
+
+    async def search_by_interval_dto(
+        self, params: SearchIntervalQueryParamsDTO
+    ) -> PageModel:
+        """
+        Busca videos subidos en un rango de fechas usando DTO.
+
+        Args:
+            params: DTO con startDay, endDay, página, pageSize y orden
+
+        Returns:
+            PageModel con los resultados paginados
+        """
+        # Determinar endDay (default a hoy si no proporcionado)
+        end_day_str = (
+            params.endDay if params.endDay else datetime.now().strftime("%d/%m/%Y")
+        )
+
+        # Parsear las fechas del formato dd/MM/YYYY (validado por el DTO)
+        try:
+            start_date = datetime.strptime(params.startDay, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid startDay format. Expected dd/MM/YYYY")
+
+        try:
+            end_date = datetime.strptime(end_day_str, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid endDay format. Expected dd/MM/YYYY")
+
+        # Validar que start_day no sea mayor que end_day
+        if start_date > end_date:
+            raise ValueError("startDay cannot be greater than endDay")
+
+        # Calcular skip para paginación
+        skip = (params.page - 1) * params.pageSize
+
+        # Buscar videos
+        videos, total = await self.video_repository.search_by_interval(
+            start_date, end_date, skip, params.pageSize, params.sort
+        )
+
+        # Calcular páginas
+        total_pages = (
+            (total + params.pageSize - 1) // params.pageSize if total > 0 else 0
+        )
+
+        # Construir respuesta
+        next_page: Optional[int] = (
+            params.page + 1 if params.page < total_pages else None
+        )
+        previous_page: Optional[int] = params.page - 1 if params.page > 1 else None
+
+        return PageModel(
+            results=total,
+            currentPage=params.page,
+            pageSize=params.pageSize,
+            nextPage=next_page,
+            previousPage=previous_page,
+        )
+
+    async def get_random_video_by_dto(
+        self, params: RandomByDayQueryParamsDTO | RandomByIntervalQueryParamsDTO
+    ) -> Optional[VideoModel]:
+        """
+        Obtiene un video aleatorio usando DTO.
+
+        Args:
+            params: DTO con día o intervalo de fechas
+
+        Returns:
+            VideoModel aleatorio o None si no hay videos
+        """
+        # Determinar si es búsqueda por día o por intervalo
+        if hasattr(params, "day") and params.day:
+            # Búsqueda por día específico
+            return await self.get_random_video_by_day(params.day)
+        else:
+            # Búsqueda por intervalo (startDay/endDay)
+            if isinstance(params, RandomByIntervalQueryParamsDTO):
+                start_day = params.startDay
+                end_day = (
+                    params.endDay
+                    if params.endDay
+                    else datetime.now().strftime("%d/%m/%Y")
+                )
+            else:
+                # Si RandomByDayQueryParamsDTO viene sin day, usar defaults
+                start_day = "23/04/2005"
+                end_day = datetime.now().strftime("%d/%m/%Y")
+            return await self.get_random_video_by_interval(start_day, end_day)
+
+    async def get_random_video_by_day_exclude_ids_dto(
+        self, params: RandomByDayQueryParamsDTO, exclude_ids: List[str]
+    ) -> Optional[VideoModel]:
+        """
+        Obtiene un video aleatorio excluyendo IDs usando DTO.
+
+        Args:
+            params: DTO con día
+            exclude_ids: Lista de IDs a excluir
+
+        Returns:
+            VideoModel aleatorio o None si no hay videos
+        """
+        return await self.get_random_video_by_day_exclude_ids(params.day, exclude_ids)
+
+    async def get_random_video_by_dto_exclude_ids(
+        self,
+        params: RandomByDayQueryParamsDTO | RandomByIntervalQueryParamsDTO,
+        exclude_ids: List[str],
+    ) -> Optional[VideoModel]:
+        """
+        Obtiene un video aleatorio excluyendo IDs usando DTO.
+
+        Args:
+            params: DTO con día o intervalo de fechas
+            exclude_ids: Lista de IDs a excluir
+
+        Returns:
+            VideoModel aleatorio o None si no hay videos
+        """
+        # Determinar si es búsqueda por día o por intervalo
+        if hasattr(params, "day") and params.day:
+            # Búsqueda por día específico
+            return await self.get_random_video_by_day_exclude_ids(
+                params.day, exclude_ids
+            )
+        else:
+            # Búsqueda por intervalo (startDay/endDay)
+            if isinstance(params, RandomByIntervalQueryParamsDTO):
+                start_day = params.startDay
+                end_day = (
+                    params.endDay
+                    if params.endDay
+                    else datetime.now().strftime("%d/%m/%Y")
+                )
+            else:
+                # Si RandomByDayQueryParamsDTO viene sin day, usar defaults
+                start_day = "23/04/2005"
+                end_day = datetime.now().strftime("%d/%m/%Y")
+            return await self.get_random_video_by_interval_exclude_ids(
+                start_day, end_day, exclude_ids
+            )
+
+    # ===== Legacy methods (for backward compatibility) =====
 
     async def search_by_day(
         self, day: str, page: int = 1, pageSize: int = 30, sort: str = "asc"
