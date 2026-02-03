@@ -3,10 +3,11 @@ from common.utils.genid import gen_id
 from common.utils.scriptscrapper import obtener_datos_youtube
 from models.domain.video_model import VideoModel
 from models.controller.input.publish_video_request import PublishVideoRequest
+from models.controller.output.page_model import PageModel
 from abc import ABC, abstractmethod
 from repository.VideoRepository import VideoRepository
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 
 class IVideoService(ABC):
@@ -28,6 +29,16 @@ class IVideoService(ABC):
 
     @abstractmethod
     async def count_videos(self) -> int:
+        pass
+
+    @abstractmethod
+    async def search_by_day(self, day: str, page: int, pageSize: int) -> PageModel:
+        pass
+
+    @abstractmethod
+    async def search_by_interval(
+        self, start_day: str, end_day: str, page: int, pageSize: int
+    ) -> PageModel:
         pass
 
 
@@ -80,3 +91,111 @@ class VideoService(IVideoService):
 
     async def count_videos(self) -> int:
         return await self.video_repository.count_videos()
+
+    async def search_by_day(
+        self, day: str, page: int = 1, pageSize: int = 30
+    ) -> PageModel:
+        """
+        Busca videos subidos en un día específico.
+
+        Args:
+            day: Fecha en formato dd/MM/YYYY
+            page: Número de página (comienza en 1)
+            pageSize: Número de elementos por página (default 30, max 100)
+
+        Returns:
+            PageModel con los resultados paginados
+        """
+        # Validar pageSize máximo
+        if pageSize > 100:
+            pageSize = 100
+        elif pageSize < 1:
+            pageSize = 30
+
+        # Parsear la fecha del formato dd/MM/YYYY
+        try:
+            day_date = datetime.strptime(day, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid date format. Expected dd/MM/YYYY")
+
+        # Calcular skip para paginación
+        skip = (page - 1) * pageSize
+
+        # Buscar videos
+        videos, total = await self.video_repository.search_by_day(
+            day_date, skip, pageSize
+        )
+
+        # Calcular páginas
+        total_pages = (total + pageSize - 1) // pageSize if total > 0 else 0
+
+        # Construir respuesta
+        next_page: Optional[int] = page + 1 if page < total_pages else None
+        previous_page: Optional[int] = page - 1 if page > 1 else None
+
+        return PageModel(
+            results=total,
+            currentPage=page,
+            pageSize=pageSize,
+            nextPage=next_page,
+            previousPage=previous_page,
+        )
+
+    async def search_by_interval(
+        self, start_day: str, end_day: str, page: int = 1, pageSize: int = 30
+    ) -> PageModel:
+        """
+        Busca videos subidos en un rango de fechas.
+
+        Args:
+            start_day: Fecha de inicio en formato dd/MM/YYYY (default: 23/04/2005)
+            end_day: Fecha de fin en formato dd/MM/YYYY (default: fecha actual)
+            page: Número de página (comienza en 1)
+            pageSize: Número de elementos por página (default 30, max 100)
+
+        Returns:
+            PageModel con los resultados paginados
+        """
+        # Validar pageSize máximo
+        if pageSize > 100:
+            pageSize = 100
+        elif pageSize < 1:
+            pageSize = 30
+
+        # Parsear las fechas del formato dd/MM/YYYY
+        try:
+            start_date = datetime.strptime(start_day, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid start_day format. Expected dd/MM/YYYY")
+
+        try:
+            end_date = datetime.strptime(end_day, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid end_day format. Expected dd/MM/YYYY")
+
+        # Validar que start_day no sea mayor que end_day
+        if start_date > end_date:
+            raise ValueError("start_day cannot be greater than end_day")
+
+        # Calcular skip para paginación
+        skip = (page - 1) * pageSize
+
+        # Buscar videos
+        videos, total = await self.video_repository.search_by_interval(
+            start_date, end_date, skip, pageSize
+        )
+
+        # Calcular páginas
+        total_pages = (total + pageSize - 1) // pageSize if total > 0 else 0
+
+        # Construir respuesta
+        next_page: Optional[int] = page + 1 if page < total_pages else None
+        previous_page: Optional[int] = page - 1 if page > 1 else None
+
+        return PageModel(
+            results=total,
+            currentPage=page,
+            pageSize=pageSize,
+            nextPage=next_page,
+            previousPage=previous_page,
+        )
