@@ -4,6 +4,7 @@ from common.utils.scriptscrapper import obtener_datos_youtube
 from models.domain.video_model import VideoModel
 from models.controller.input.publish_video_request import PublishVideoRequest
 from models.controller.output.page_model import PageModel
+from models.controller.output.video_controller import VideoSchema
 from abc import ABC, abstractmethod
 from repository.VideoRepository import VideoRepository
 from datetime import datetime
@@ -162,12 +163,16 @@ class VideoService(IVideoService):
         next_page: Optional[int] = page + 1 if page < total_pages else None
         previous_page: Optional[int] = page - 1 if page > 1 else None
 
+        # Mapear videos a VideoSchema
+        videos_data = [VideoSchema(**v.dict()) for v in videos]
+
         return PageModel(
             results=total,
             currentPage=page,
             pageSize=pageSize,
             nextPage=next_page,
             previousPage=previous_page,
+            data=videos_data,
         )
 
     async def search_by_interval(
@@ -231,12 +236,16 @@ class VideoService(IVideoService):
         next_page: Optional[int] = page + 1 if page < total_pages else None
         previous_page: Optional[int] = page - 1 if page > 1 else None
 
+        # Mapear videos a VideoSchema
+        videos_data = [VideoSchema(**v.dict()) for v in videos]
+
         return PageModel(
             results=total,
             currentPage=page,
             pageSize=pageSize,
             nextPage=next_page,
             previousPage=previous_page,
+            data=videos_data,
         )
 
     async def get_random_video_by_day(self, day: str) -> Optional[VideoModel]:

@@ -1,28 +1,18 @@
-# TODO: Implement random video by day/interval query params
+# TODO: Add "data" attribute to PageModel for search endpoints
 
-## Step 1: Update repository (VideoRepository.py)
-- [x] Add `get_random_video_by_day(day: datetime) -> Optional[VideoModel]`
-- [x] Add `get_random_video_by_interval(start_day: datetime, end_day: datetime) -> Optional[VideoModel]`
-- [x] Add `get_random_video_by_day_exclude_ids(day: datetime, exclude_ids: List[str]) -> Optional[VideoModel]`
-- [x] Add `get_random_video_by_interval_exclude_ids(start_day: datetime, end_day: datetime, exclude_ids: List[str]) -> Optional[VideoModel]`
+## Changes Required:
 
-## Step 2: Update service (VideoService.py)
-- [x] Add abstract methods `get_random_video_by_day` and `get_random_video_by_interval` to IVideoService
-- [x] Add abstract methods `get_random_video_by_day_exclude_ids` and `get_random_video_by_interval_exclude_ids` to IVideoService
-- [x] Implement `get_random_video_by_day` in VideoService
-- [x] Implement `get_random_video_by_interval` in VideoService
-- [x] Implement `get_random_video_by_day_exclude_ids` in VideoService
-- [x] Implement `get_random_video_by_interval_exclude_ids` in VideoService
+### 1. Update `models/controller/output/page_model.py`
+- Add `data: List[VideoSchema]` field to PageModel
+- Handle circular import using TYPE_CHECKING
 
-## Step 3: Update endpoints (main.py)
-- [x] Update GET /random with optional query params: day, startDay, endDay
-- [x] Update PUT /random with same optional query params
-- [x] Add validation logic: if day is present, use it; otherwise use startDay/endDay
-- [x] Maintain original behavior when no query params are provided
+### 2. Update `service/VideoService.py`
+- Import `VideoSchema` from `models.controller.output.video_controller`
+- In `search_by_day()`: Change `PageModel(...)` to include `data=[VideoSchema(**v.dict()) for v in videos]`
+- In `search_by_interval()`: Change `PageModel(...)` to include `data=[VideoSchema(**v.dict()) for v in videos]`
 
-## Step 4: Verify implementation
-- [x] Run syntax check on the code
-
-All tasks completed successfully!
-
+## Notes:
+- The repository layer already returns `List[VideoModel]`
+- The service layer needs to map each `VideoModel` to `VideoSchema` when constructing PageModel
+- No changes needed to endpoints or repository layer
 

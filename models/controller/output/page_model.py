@@ -1,5 +1,8 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.controller.output.video_controller import VideoSchema
 
 
 class PageModel(BaseModel):
@@ -12,6 +15,7 @@ class PageModel(BaseModel):
         pageSize: Número de elementos por página (default 30, max 100)
         nextPage: Número de la siguiente página (solo se incluye si existe)
         previousPage: Número de la página anterior (solo se incluye si existe)
+        data: Lista de videos encontrados
     """
 
     results: int = Field(..., description="Cantidad total de resultados")
@@ -22,4 +26,7 @@ class PageModel(BaseModel):
     )
     previousPage: Optional[int] = Field(
         None, description="Número de la página anterior (solo se incluye si existe)"
+    )
+    data: List["VideoSchema"] = Field(
+        default_factory=list, description="Lista de videos encontrados"
     )
