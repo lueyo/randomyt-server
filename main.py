@@ -8,7 +8,7 @@ from models.controller.output.page_model import PageModel
 from service.VideoService import VideoService, IVideoService
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 from datetime import datetime
 
 app = FastAPI(
@@ -307,3 +307,9 @@ async def search_by_interval(
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    return FileResponse("static/favicon.png")
