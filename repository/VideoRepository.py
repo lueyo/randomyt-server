@@ -30,13 +30,18 @@ class IVideoRepository(ABC):
 
     @abstractmethod
     async def search_by_day(
-        self, day: datetime, skip: int, limit: int
+        self, day: datetime, skip: int, limit: int, sort: str = "asc"
     ) -> Tuple[List[VideoModel], int]:
         pass
 
     @abstractmethod
     async def search_by_interval(
-        self, start_day: datetime, end_day: datetime, skip: int, limit: int
+        self,
+        start_day: datetime,
+        end_day: datetime,
+        skip: int,
+        limit: int,
+        sort: str = "asc",
     ) -> Tuple[List[VideoModel], int]:
         pass
 
@@ -96,7 +101,7 @@ class VideoRepository(IVideoRepository):
         return await db_client.videos.count_documents({})
 
     async def search_by_day(
-        self, day: datetime, skip: int, limit: int
+        self, day: datetime, skip: int, limit: int, sort: str = "asc"
     ) -> Tuple[List[VideoModel], int]:
         """
         Busca videos subidos en un día específico.
@@ -105,6 +110,7 @@ class VideoRepository(IVideoRepository):
             day: Fecha del día a buscar (datetime con hora 00:00:00)
             skip: Número de documentos a omitir (para paginación)
             limit: Número máximo de documentos a devolver
+            sort: Orden de clasificación ("asc" para más antiguo primero, "desc" para más reciente primero)
 
         Returns:
             Tupla con la lista de videos y el total de documentos encontrados
@@ -113,17 +119,20 @@ class VideoRepository(IVideoRepository):
         start_of_day = datetime(day.year, day.month, day.day, 0, 0, 0)
         end_of_day = datetime(day.year, day.month, day.day, 23, 59, 59, 999999)
 
+        # Determinar el orden de clasificación
+        sort_order = 1 if sort == "asc" else -1
+
         # Contar total de documentos que coinciden
         total = await db_client.videos.count_documents(
             {"upload_date": {"$gte": start_of_day, "$lte": end_of_day}}
         )
 
-        # Buscar documentos con paginación y orden cronológico (más antiguo a más nuevo)
+        # Buscar documentos con paginación y orden cronológico
         cursor = (
             db_client.videos.find(
                 {"upload_date": {"$gte": start_of_day, "$lte": end_of_day}}
             )
-            .sort("upload_date", 1)
+            .sort("upload_date", sort_order)
             .skip(skip)
             .limit(limit)
         )
@@ -141,7 +150,12 @@ class VideoRepository(IVideoRepository):
         return videos, total
 
     async def search_by_interval(
-        self, start_day: datetime, end_day: datetime, skip: int, limit: int
+        self,
+        start_day: datetime,
+        end_day: datetime,
+        skip: int,
+        limit: int,
+        sort: str = "asc",
     ) -> Tuple[List[VideoModel], int]:
         """
         Busca videos subidos en un rango de fechas.
@@ -151,6 +165,7 @@ class VideoRepository(IVideoRepository):
             end_day: Fecha de fin del rango
             skip: Número de documentos a omitir (para paginación)
             limit: Número máximo de documentos a devolver
+            sort: Orden de clasificación ("asc" para más antiguo primero, "desc" para más reciente primero)
 
         Returns:
             Tupla con la lista de videos y el total de documentos encontrados
@@ -163,17 +178,20 @@ class VideoRepository(IVideoRepository):
             end_day.year, end_day.month, end_day.day, 23, 59, 59, 999999
         )
 
+        # Determinar el orden de clasificación
+        sort_order = 1 if sort == "asc" else -1
+
         # Contar total de documentos que coinciden
         total = await db_client.videos.count_documents(
             {"upload_date": {"$gte": start_of_start, "$lte": end_of_end}}
         )
 
-        # Buscar documentos con paginación y orden cronológico (más antiguo a más nuevo)
+        # Buscar documentos con paginación y orden cronológico
         cursor = (
             db_client.videos.find(
                 {"upload_date": {"$gte": start_of_start, "$lte": end_of_end}}
             )
-            .sort("upload_date", 1)
+            .sort("upload_date", sort_order)
             .skip(skip)
             .limit(limit)
         )
