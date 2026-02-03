@@ -16,7 +16,7 @@ class VideoModel(BaseModel):
     views: int = Field(
         ...,
         le=LIMIT_VIEWS,
-        description="Número de visualizaciones del video, no puede ser superior a 2000",
+        description=f"Número de visualizaciones del video, no puede ser superior a {LIMIT_VIEWS}",
     )
 
     @field_validator("id")
