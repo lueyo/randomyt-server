@@ -1,8 +1,7 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List
 
-if TYPE_CHECKING:
-    from models.controller.output.video_controller import VideoSchema
+from models.controller.output.video_controller import VideoSchema
 
 
 class PageModel(BaseModel):
@@ -27,6 +26,6 @@ class PageModel(BaseModel):
     previousPage: Optional[int] = Field(
         None, description="Número de la página anterior (solo se incluye si existe)"
     )
-    data: List["VideoSchema"] = Field(
+    data: List[VideoSchema] = Field(
         default_factory=list, description="Lista de videos encontrados"
     )
