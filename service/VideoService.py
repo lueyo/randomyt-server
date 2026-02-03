@@ -43,6 +43,28 @@ class IVideoService(ABC):
     ) -> PageModel:
         pass
 
+    @abstractmethod
+    async def get_random_video_by_day(self, day: str) -> Optional[VideoModel]:
+        pass
+
+    @abstractmethod
+    async def get_random_video_by_interval(
+        self, start_day: str, end_day: str
+    ) -> Optional[VideoModel]:
+        pass
+
+    @abstractmethod
+    async def get_random_video_by_day_exclude_ids(
+        self, day: str, exclude_ids: List[str]
+    ) -> Optional[VideoModel]:
+        pass
+
+    @abstractmethod
+    async def get_random_video_by_interval_exclude_ids(
+        self, start_day: str, end_day: str, exclude_ids: List[str]
+    ) -> Optional[VideoModel]:
+        pass
+
 
 class VideoService(IVideoService):
 
@@ -215,4 +237,110 @@ class VideoService(IVideoService):
             pageSize=pageSize,
             nextPage=next_page,
             previousPage=previous_page,
+        )
+
+    async def get_random_video_by_day(self, day: str) -> Optional[VideoModel]:
+        """
+        Obtiene un video aleatorio de un día específico.
+
+        Args:
+            day: Fecha en formato dd/MM/YYYY
+
+        Returns:
+            VideoModel aleatorio o None si no hay videos
+        """
+        # Parsear la fecha del formato dd/MM/YYYY
+        try:
+            day_date = datetime.strptime(day, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid date format. Expected dd/MM/YYYY")
+
+        return await self.video_repository.get_random_video_by_day(day_date)
+
+    async def get_random_video_by_interval(
+        self, start_day: str, end_day: str
+    ) -> Optional[VideoModel]:
+        """
+        Obtiene un video aleatorio de un rango de fechas.
+
+        Args:
+            start_day: Fecha de inicio en formato dd/MM/YYYY
+            end_day: Fecha de fin en formato dd/MM/YYYY
+
+        Returns:
+            VideoModel aleatorio o None si no hay videos
+        """
+        # Parsear las fechas del formato dd/MM/YYYY
+        try:
+            start_date = datetime.strptime(start_day, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid start_day format. Expected dd/MM/YYYY")
+
+        try:
+            end_date = datetime.strptime(end_day, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid end_day format. Expected dd/MM/YYYY")
+
+        # Validar que start_day no sea mayor que end_day
+        if start_date > end_date:
+            raise ValueError("start_day cannot be greater than end_day")
+
+        return await self.video_repository.get_random_video_by_interval(
+            start_date, end_date
+        )
+
+    async def get_random_video_by_day_exclude_ids(
+        self, day: str, exclude_ids: List[str]
+    ) -> Optional[VideoModel]:
+        """
+        Obtiene un video aleatorio de un día específico excluyendo IDs.
+
+        Args:
+            day: Fecha en formato dd/MM/YYYY
+            exclude_ids: Lista de IDs a excluir
+
+        Returns:
+            VideoModel aleatorio o None si no hay videos
+        """
+        # Parsear la fecha del formato dd/MM/YYYY
+        try:
+            day_date = datetime.strptime(day, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid date format. Expected dd/MM/YYYY")
+
+        return await self.video_repository.get_random_video_by_day_exclude_ids(
+            day_date, exclude_ids
+        )
+
+    async def get_random_video_by_interval_exclude_ids(
+        self, start_day: str, end_day: str, exclude_ids: List[str]
+    ) -> Optional[VideoModel]:
+        """
+        Obtiene un video aleatorio de un rango de fechas excluyendo IDs.
+
+        Args:
+            start_day: Fecha de inicio en formato dd/MM/YYYY
+            end_day: Fecha de fin en formato dd/MM/YYYY
+            exclude_ids: Lista de IDs a excluir
+
+        Returns:
+            VideoModel aleatorio o None si no hay videos
+        """
+        # Parsear las fechas del formato dd/MM/YYYY
+        try:
+            start_date = datetime.strptime(start_day, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid start_day format. Expected dd/MM/YYYY")
+
+        try:
+            end_date = datetime.strptime(end_day, "%d/%m/%Y")
+        except ValueError:
+            raise ValueError("Invalid end_day format. Expected dd/MM/YYYY")
+
+        # Validar que start_day no sea mayor que end_day
+        if start_date > end_date:
+            raise ValueError("start_day cannot be greater than end_day")
+
+        return await self.video_repository.get_random_video_by_interval_exclude_ids(
+            start_date, end_date, exclude_ids
         )

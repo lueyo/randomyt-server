@@ -77,19 +77,46 @@ async def publish_video(
 
 @app.get("/random", response_model=VideoSchema)
 async def get_random_video(
+    day: str = Query(
+        default=None,
+        description="Day to search in format dd/MM/YYYY (takes priority over startDay/endDay)",
+    ),
+    startDay: str = Query(
+        default="23/04/2005",
+        description="Start day in format dd/MM/YYYY",
+    ),
+    endDay: str = Query(
+        default=None,
+        description="End day in format dd/MM/YYYY (defaults to today if not provided)",
+    ),
     videoService: IVideoService = Depends(get_video_service),
 ):
     """
     Retrieves a random video from the database.
 
     This endpoint fetches a random YouTube video.
+    Optionally, you can filter by a specific day or a date interval.
 
+    - **day**: Specific day in format dd/MM/YYYY (optional, takes priority over startDay/endDay)
+    - **startDay**: Start day in format dd/MM/YYYY (default: 23/04/2005)
+    - **endDay**: End day in format dd/MM/YYYY (optional, defaults to today)
     - **videoService**: Dependency-injected service for handling video operations.
 
     Returns:
     - A VideoSchema object containing the video details.
     """
-    video = await videoService.get_random_video()
+    # If day is provided, use it; otherwise use startDay and endDay
+    if day:
+        video = await videoService.get_random_video_by_day(day)
+    elif startDay or endDay:
+        # Set default endDay to today if not provided
+        if endDay is None:
+            endDay = datetime.now().strftime("%d/%m/%Y")
+        video = await videoService.get_random_video_by_interval(startDay, endDay)
+    else:
+        # No date params provided, use original random behavior
+        video = await videoService.get_random_video()
+
     if not video:
         raise HTTPException(status_code=404, detail="No videos found")
     return VideoSchema(**video.dict())
@@ -98,21 +125,50 @@ async def get_random_video(
 @app.put("/random", response_model=VideoSchema)
 async def get_random_video_exclude_ids(
     request: ArrayOfIDsRequest,
+    day: str = Query(
+        default=None,
+        description="Day to search in format dd/MM/YYYY (takes priority over startDay/endDay)",
+    ),
+    startDay: str = Query(
+        default="23/04/2005",
+        description="Start day in format dd/MM/YYYY",
+    ),
+    endDay: str = Query(
+        default=None,
+        description="End day in format dd/MM/YYYY (defaults to today if not provided)",
+    ),
     videoService: IVideoService = Depends(get_video_service),
 ):
     """
     Retrieves a random video from the database excluding the array of ids sent to the endpoint.
 
     This endpoint fetches a random YouTube video excluding the provided IDs.
+    Optionally, you can filter by a specific day or a date interval.
 
     - **request**: Pydantic model containing the list of IDs to exclude.
       - **ids**: List of video IDs to exclude.
+    - **day**: Specific day in format dd/MM/YYYY (optional, takes priority over startDay/endDay)
+    - **startDay**: Start day in format dd/MM/YYYY (default: 23/04/2005)
+    - **endDay**: End day in format dd/MM/YYYY (optional, defaults to today)
     - **videoService**: Dependency-injected service for handling video operations.
 
     Returns:
     - A VideoSchema object containing the video details.
     """
-    video = await videoService.get_random_video_exclude_ids(request.ids)
+    # If day is provided, use it; otherwise use startDay and endDay
+    if day:
+        video = await videoService.get_random_video_by_day_exclude_ids(day, request.ids)
+    elif startDay or endDay:
+        # Set default endDay to today if not provided
+        if endDay is None:
+            endDay = datetime.now().strftime("%d/%m/%Y")
+        video = await videoService.get_random_video_by_interval_exclude_ids(
+            startDay, endDay, request.ids
+        )
+    else:
+        # No date params provided, use original random behavior
+        video = await videoService.get_random_video_exclude_ids(request.ids)
+
     if not video:
         raise HTTPException(
             status_code=404, detail="No videos found, all videos have been seen"
