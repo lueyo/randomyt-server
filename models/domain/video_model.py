@@ -13,11 +13,7 @@ class VideoModel(BaseModel):
     )
     upload_date: datetime = Field(..., description="Fecha de subida del video")
     tags: List[str] = Field(default_factory=list)
-    views: int = Field(
-        ...,
-        le=LIMIT_VIEWS,
-        description=f"Número de visualizaciones del video, no puede ser superior a {LIMIT_VIEWS}",
-    )
+    views: int # el limite de visitas se valida solo al insertar el video en la base de datos
 
     @field_validator("id")
     @classmethod
