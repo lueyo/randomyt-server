@@ -6,7 +6,7 @@ from models.domain.video_model import VideoModel
 from models.controller.input.publish_video_request import PublishVideoRequest
 from models.controller.output.page_model import PageModel
 from service.VideoService import VideoService, IVideoService
-from typing import List
+from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, FileResponse
 from datetime import datetime
@@ -257,14 +257,17 @@ async def search_by_day(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.get("/search-interval", response_model=PageModel)
-async def search_by_interval(
-    startDay: str = Query(
-        default="23/04/2005", description="Start day in format dd/MM/YYYY"
+@app.get("/search-title", response_model=PageModel)
+async def search_by_title(
+    q: str = Query(
+        ...,
+        description="Text to search in video title (partial match, case-insensitive)",
+        example="tutorial",
     ),
-    endDay: str = Query(
+    tags: Optional[List[str]] = Query(
         default=None,
-        description="End day in format dd/MM/YYYY (defaults to today if not provided)",
+        description="Optional list of tags to filter by (videos with at least one of these tags)",
+        example=["music", "rock"],
     ),
     page: int = Query(default=1, ge=1, description="Page number (starts at 1)"),
     pageSize: int = Query(
@@ -281,13 +284,13 @@ async def search_by_interval(
     videoService: IVideoService = Depends(get_video_service),
 ):
     """
-    Searches for videos uploaded within a date interval.
+    Searches for videos by title and optionally by tags.
 
-    This endpoint returns videos that were uploaded between startDay and endDay,
-    ordered chronologically.
+    This endpoint returns videos that match the search query in their title,
+    optionally filtered by tags, ordered chronologically.
 
-    - **startDay**: Start day in format dd/MM/YYYY (default: 23/04/2005)
-    - **endDay**: End day in format dd/MM/YYYY (defaults to today if not provided)
+    - **q**: Search text for title (required, partial match, case-insensitive)
+    - **tags**: Optional list of tags to filter by (videos with at least one of these tags)
     - **page**: Page number, starts at 1 (default: 1)
     - **pageSize**: Number of items per page, max 100 (default: 30)
     - **sort**: Sort order, 'asc' for oldest first, 'desc' for newest first (default: asc)
@@ -296,18 +299,11 @@ async def search_by_interval(
     Returns:
     - A PageModel object containing paginated results.
     """
-    # Set default endDay to today if not provided
-    if endDay is None:
-        endDay = datetime.now().strftime("%d/%m/%Y")
-
     try:
-        result = await videoService.search_by_interval(
-            startDay, endDay, page, pageSize, sort
-        )
+        result = await videoService.search_by_title(q, tags, page, pageSize, sort)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 
 @app.get("/favicon.ico")

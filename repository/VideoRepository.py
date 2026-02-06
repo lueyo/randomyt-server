@@ -62,6 +62,17 @@ class IVideoRepository(ABC):
         pass
 
     @abstractmethod
+    async def search_by_title(
+        self,
+        query: str,
+        tags: Optional[List[str]],
+        skip: int,
+        limit: int,
+        sort: str = "asc",
+    ) -> Tuple[List[VideoModel], int]:
+        pass
+
+    @abstractmethod
     async def get_random_video_by_interval_exclude_ids(
         self, start_day: datetime, end_day: datetime, exclude_ids: List[str]
     ) -> Optional[VideoModel]:
@@ -337,6 +348,55 @@ class VideoRepository(IVideoRepository):
             return VideoModel(**video_db_data)
         else:
             return None
+
+    async def search_by_title(
+        self,
+        query: str,
+        tags: Optional[List[str]],
+        skip: int,
+        limit: int,
+        sort: str = "asc",
+    ) -> Tuple[List[VideoModel], int]:
+        """
+        Busca videos por título y opcionalmente por tags.
+
+        Args:
+            query: Texto a buscar en el título (búsqueda parcial, case-insensitive)
+            tags: Lista opcional de tags para filtrar (videos que tengan al menos uno de estos tags)
+            skip: Número de documentos a omitir (para paginación)
+            limit: Número máximo de documentos a devolver
+            sort: Orden de clasificación ("asc" para más antiguo primero, "desc" para más reciente primero)
+
+        Returns:
+            Tupla con la lista de videos y el total de documentos encontrados
+        """
+        filter_query = {"title": {"$regex": query, "$options": "i"}}
+
+        if tags and len(tags) > 0:
+            filter_query["tags"] = {"$in": tags}
+
+        sort_order = 1 if sort == "asc" else -1
+
+        total = await db_client.videos.count_documents(filter_query)
+
+        cursor = (
+            db_client.videos.find(filter_query)
+            .sort("upload_date", sort_order)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        results = await cursor.to_list(length=limit)
+
+        videos = []
+        for video_data in results:
+            video_db = VideoDB(**video_data)
+            video_db_data = video_db.dict()
+            if "_id" in video_db_data:
+                video_db_data["id"] = video_db_data.pop("_id")
+            videos.append(VideoModel(**video_db_data))
+
+        return videos, total
 
     async def get_random_video_by_interval_exclude_ids(
         self, start_day: datetime, end_day: datetime, exclude_ids: List[str]

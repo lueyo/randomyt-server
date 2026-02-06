@@ -45,6 +45,17 @@ class IVideoService(ABC):
         pass
 
     @abstractmethod
+    async def search_by_title(
+        self,
+        query: str,
+        tags: Optional[List[str]],
+        page: int,
+        pageSize: int,
+        sort: str = "asc",
+    ) -> PageModel:
+        pass
+
+    @abstractmethod
     async def get_random_video_by_day(self, day: str) -> Optional[VideoModel]:
         pass
 
@@ -237,6 +248,60 @@ class VideoService(IVideoService):
         previous_page: Optional[int] = page - 1 if page > 1 else None
 
         # Mapear videos a VideoSchema
+        videos_data = [VideoSchema(**v.dict()) for v in videos]
+
+        return PageModel(
+            results=total,
+            currentPage=page,
+            pageSize=pageSize,
+            nextPage=next_page,
+            previousPage=previous_page,
+            data=videos_data,
+        )
+
+    async def search_by_title(
+        self,
+        query: str,
+        tags: Optional[List[str]],
+        page: int = 1,
+        pageSize: int = 30,
+        sort: str = "asc",
+    ) -> PageModel:
+        """
+        Busca videos por título y opcionalmente por tags.
+
+        Args:
+            query: Texto a buscar en el título (búsqueda parcial, case-insensitive)
+            tags: Lista opcional de tags para filtrar (videos que tengan al menos uno de estos tags)
+            page: Número de página (comienza en 1)
+            pageSize: Número de elementos por página (default 30, max 100)
+            sort: Orden de clasificación ("asc" para más antiguo primero, "desc" para más reciente primero)
+
+        Returns:
+            PageModel con los resultados paginados
+        """
+        if pageSize > 100:
+            pageSize = 100
+        elif pageSize < 1:
+            pageSize = 30
+
+        if sort not in ["asc", "desc"]:
+            sort = "asc"
+
+        if not query or query.strip() == "":
+            raise ValueError("Query parameter 'q' is required and cannot be empty")
+
+        skip = (page - 1) * pageSize
+
+        videos, total = await self.video_repository.search_by_title(
+            query, tags, skip, pageSize, sort
+        )
+
+        total_pages = (total + pageSize - 1) // pageSize if total > 0 else 0
+
+        next_page: Optional[int] = page + 1 if page < total_pages else None
+        previous_page: Optional[int] = page - 1 if page > 1 else None
+
         videos_data = [VideoSchema(**v.dict()) for v in videos]
 
         return PageModel(
