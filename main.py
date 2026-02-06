@@ -257,6 +257,57 @@ async def search_by_day(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.get("/search-interval", response_model=PageModel)
+async def search_by_interval(
+    startDay: str = Query(
+        default="23/04/2005", description="Start day in format dd/MM/YYYY"
+    ),
+    endDay: str = Query(
+        default=None,
+        description="End day in format dd/MM/YYYY (defaults to today if not provided)",
+    ),
+    page: int = Query(default=1, ge=1, description="Page number (starts at 1)"),
+    pageSize: int = Query(
+        default=30,
+        ge=1,
+        le=100,
+        description="Number of items per page (default 30, max 100)",
+    ),
+    sort: str = Query(
+        default="asc",
+        regex="^(asc|desc)$",
+        description="Sort order: 'asc' for oldest first, 'desc' for newest first",
+    ),
+    videoService: IVideoService = Depends(get_video_service),
+):
+    """
+    Searches for videos uploaded within a date interval.
+
+    This endpoint returns videos that were uploaded between startDay and endDay,
+    ordered chronologically.
+
+    - **startDay**: Start day in format dd/MM/YYYY (default: 23/04/2005)
+    - **endDay**: End day in format dd/MM/YYYY (defaults to today if not provided)
+    - **page**: Page number, starts at 1 (default: 1)
+    - **pageSize**: Number of items per page, max 100 (default: 30)
+    - **sort**: Sort order, 'asc' for oldest first, 'desc' for newest first (default: asc)
+    - **videoService**: Dependency-injected service for handling video operations.
+
+    Returns:
+    - A PageModel object containing paginated results.
+    """
+    if endDay is None:
+        endDay = datetime.now().strftime("%d/%m/%Y")
+
+    try:
+        result = await videoService.search_by_interval(
+            startDay, endDay, page, pageSize, sort
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.get("/search-title", response_model=PageModel)
 async def search_by_title(
     q: str = Query(
