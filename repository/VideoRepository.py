@@ -73,6 +73,20 @@ class IVideoRepository(ABC):
         pass
 
     @abstractmethod
+    async def search_combined(
+        self,
+        query: Optional[str],
+        tags: Optional[List[str]],
+        day: Optional[datetime],
+        start_day: Optional[datetime],
+        end_day: Optional[datetime],
+        skip: int,
+        limit: int,
+        sort: str = "asc",
+    ) -> Tuple[List[VideoModel], int]:
+        pass
+
+    @abstractmethod
     async def get_random_video_by_interval_exclude_ids(
         self, start_day: datetime, end_day: datetime, exclude_ids: List[str]
     ) -> Optional[VideoModel]:
@@ -374,6 +388,83 @@ class VideoRepository(IVideoRepository):
 
         if tags and len(tags) > 0:
             filter_query["tags"] = {"$in": tags}
+
+        sort_order = 1 if sort == "asc" else -1
+
+        total = await db_client.videos.count_documents(filter_query)
+
+        cursor = (
+            db_client.videos.find(filter_query)
+            .sort("upload_date", sort_order)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        results = await cursor.to_list(length=limit)
+
+        videos = []
+        for video_data in results:
+            video_db = VideoDB(**video_data)
+            video_db_data = video_db.dict()
+            if "_id" in video_db_data:
+                video_db_data["id"] = video_db_data.pop("_id")
+            videos.append(VideoModel(**video_db_data))
+
+        return videos, total
+
+    async def search_combined(
+        self,
+        query: Optional[str],
+        tags: Optional[List[str]],
+        day: Optional[datetime],
+        start_day: Optional[datetime],
+        end_day: Optional[datetime],
+        skip: int,
+        limit: int,
+        sort: str = "asc",
+    ) -> Tuple[List[VideoModel], int]:
+        """
+        Busca videos combinando filtros de título, tags y fechas.
+
+        Args:
+            query: Texto opcional a buscar en el título (búsqueda parcial, case-insensitive)
+            tags: Lista opcional de tags para filtrar (videos que tengan al menos uno de estos tags)
+            day: Fecha específica opcional (datetime con hora 00:00:00)
+            start_day: Fecha de inicio opcional del rango
+            end_day: Fecha de fin opcional del rango
+            skip: Número de documentos a omitir (para paginación)
+            limit: Número máximo de documentos a devolver
+            sort: Orden de clasificación ("asc" para más antiguo primero, "desc" para más reciente primero)
+
+        Returns:
+            Tupla con la lista de videos y el total de documentos encontrados
+        """
+        filter_query: dict = {}
+
+        if query and query.strip():
+            filter_query["title"] = {"$regex": query, "$options": "i"}
+
+        if tags and len(tags) > 0:
+            filter_query["tags"] = {"$in": tags}
+
+        if day:
+            start_of_day = datetime(day.year, day.month, day.day, 0, 0, 0)
+            end_of_day = datetime(day.year, day.month, day.day, 23, 59, 59, 999999)
+            filter_query["upload_date"] = {"$gte": start_of_day, "$lte": end_of_day}
+        elif start_day or end_day:
+            start_of_start = datetime(
+                start_day.year if start_day else 2005, 4, 23, 0, 0, 0
+            )
+            end_of_end = datetime(
+                end_day.year if end_day else datetime.now().year,
+                end_day.month if end_day else datetime.now().month,
+                end_day.day if end_day else datetime.now().day,
+                23,
+                59,
+                59,
+                999999,
+            )
+            filter_query["upload_date"] = {"$gte": start_of_start, "$lte": end_of_end}
 
         sort_order = 1 if sort == "asc" else -1
 

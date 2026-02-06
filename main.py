@@ -306,6 +306,79 @@ async def search_by_title(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.get("/search", response_model=PageModel)
+async def search_combined(
+    q: Optional[str] = Query(
+        default=None,
+        description="Text to search in video title (partial match, case-insensitive)",
+        example="tutorial",
+    ),
+    tags: Optional[List[str]] = Query(
+        default=None,
+        description="Optional list of tags to filter by (videos with at least one of these tags)",
+        example=["music", "rock"],
+    ),
+    day: Optional[str] = Query(
+        default=None,
+        description="Day to search in format dd/MM/YYYY",
+        example="25/03/2023",
+    ),
+    startDay: Optional[str] = Query(
+        default=None,
+        description="Start day in format dd/MM/YYYY",
+        example="01/01/2023",
+    ),
+    endDay: Optional[str] = Query(
+        default=None,
+        description="End day in format dd/MM/YYYY",
+        example="31/12/2023",
+    ),
+    page: int = Query(default=1, ge=1, description="Page number (starts at 1)"),
+    pageSize: int = Query(
+        default=30,
+        ge=1,
+        le=100,
+        description="Number of items per page (default 30, max 100)",
+    ),
+    sort: str = Query(
+        default="asc",
+        regex="^(asc|desc)$",
+        description="Sort order: 'asc' for oldest first, 'desc' for newest first",
+    ),
+    videoService: IVideoService = Depends(get_video_service),
+):
+    """
+    Searches for videos combining title, tags, and date filters.
+
+    This endpoint allows combining multiple filters:
+    - Search by title text (q)
+    - Filter by tags
+    - Filter by specific day or date interval
+
+    At least one filter (q, tags, day, startDay, or endDay) must be provided.
+
+    - **q**: Search text for title (optional, partial match, case-insensitive)
+    - **tags**: Optional list of tags to filter by (videos with at least one of these tags)
+    - **day**: Specific day in format dd/MM/YYYY (optional)
+    - **startDay**: Start day in format dd/MM/YYYY (optional)
+    - **endDay**: End day in format dd/MM/YYYY (optional)
+    - **page**: Page number, starts at 1 (default: 1)
+    - **pageSize**: Number of items per page, max 100 (default: 30)
+    - **sort**: Sort order, 'asc' for oldest first, 'desc' for newest first (default: asc)
+    - **videoService**: Dependency-injected service for handling video operations.
+
+    Returns:
+    - A PageModel object containing paginated results.
+    """
+    try:
+        result = await videoService.search_combined(
+            q, tags, day, startDay, endDay, page, pageSize, sort
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.get("/favicon.ico")
 async def favicon():
     return FileResponse("static/favicon.png")
