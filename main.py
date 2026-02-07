@@ -1,5 +1,6 @@
 from fastapi import Depends, FastAPI, HTTPException, Query
 from common.ioc import get_video_service
+from common.config import DISCORD_YT_RAMDOM
 from models.controller.input.array_of_ids import ArrayOfIDsRequest
 from models.controller.output.video_controller import VideoSchema
 from models.domain.video_model import VideoModel
@@ -10,6 +11,7 @@ from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, FileResponse
 from datetime import datetime
+import asyncio
 
 app = FastAPI(
     title="VideoRandom API",
@@ -433,3 +435,20 @@ async def search_combined(
 @app.get("/favicon.ico")
 async def favicon():
     return FileResponse("static/favicon.png")
+
+
+_discord_bot_task = None
+
+
+@app.on_event("startup")
+async def start_discord_bot():
+    global _discord_bot_task
+    if DISCORD_YT_RAMDOM:
+        try:
+            from bot.discord_bot import DiscordBot
+            bot = DiscordBot()
+            _discord_bot_task = asyncio.create_task(bot.start(DISCORD_YT_RAMDOM))
+        except Exception as e:
+            print(f"Failed to start Discord bot: {e}")
+    else:
+        print("Discord bot token not configured. Bot will not start.")

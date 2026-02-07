@@ -1,0 +1,113 @@
+import re
+from typing import Optional
+
+import discord
+from discord import app_commands
+
+from common.ioc import get_video_service
+from models.controller.input.publish_video_request import PublishVideoRequest
+
+
+def extract_video_id(url: str) -> Optional[str]:
+    regex = r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/|live\/)|youtu\.be\/)([^"&?\/\s]{11})'
+    match = re.search(regex, url)
+    return match.group(1) if match else None
+
+
+class DiscordBot:
+    def __init__(self):
+        self.bot = discord.Bot(intents=discord.Intents.default())
+        self._setup_commands()
+
+    def _setup_commands(self):
+        @self.bot.slash_command(name="random", description="Get a random YouTube video")
+        @app_commands.describe(start_day="Start date in format dd/MM/YYYY")
+        @app_commands.describe(end_day="End date in format dd/MM/YYYY")
+        async def random_cmd(
+            interaction: discord.Interaction,
+            start_day: Optional[str] = None,
+            end_day: Optional[str] = None,
+        ):
+            try:
+                video_service = get_video_service()
+                if start_day and end_day:
+                    video = await video_service.get_random_video_by_interval(
+                        start_day, end_day
+                    )
+                elif start_day:
+                    video = await video_service.get_random_video_by_day(start_day)
+                else:
+                    video = await video_service.get_random_video()
+
+                if video:
+                    await interaction.response.send_message(
+                        f"https://randomyt.lueyo.es/?id={video.id}"
+                    )
+                else:
+                    await interaction.response.send_message(
+                        "No videos found.", ephemeral=True
+                    )
+            except Exception as e:
+                await interaction.response.send_message(
+                    f"Error: {str(e)}", ephemeral=True
+                )
+
+        @self.bot.slash_command(
+            name="randomyt", description="Get a random YouTube video (alias for /random)"
+        )
+        @app_commands.describe(start_day="Start date in format dd/MM/YYYY")
+        @app_commands.describe(end_day="End date in format dd/MM/YYYY")
+        async def randomyt_cmd(
+            interaction: discord.Interaction,
+            start_day: Optional[str] = None,
+            end_day: Optional[str] = None,
+        ):
+            await random_cmd(interaction, start_day, end_day)
+
+        @self.bot.slash_command(
+            name="publish", description="Publish a YouTube video to the database"
+        )
+        @app_commands.describe(url="YouTube video URL")
+        async def publish_cmd(interaction: discord.Interaction, url: str):
+            await interaction.response.defer(ephemeral=True)
+
+            video_id = extract_video_id(url)
+            if not video_id:
+                await interaction.followup.send(
+                    "Could not extract video ID from URL.", ephemeral=True
+                )
+                return
+
+            try:
+                video_service = get_video_service()
+                await video_service.publish_video(PublishVideoRequest(video_id=video_id))
+
+                await interaction.followup.send(
+                    f"Video published successfully!\nhttps://randomyt.lueyo.es/?id={video_id}",
+                    ephemeral=True,
+                )
+            except ValueError as e:
+                if "Video is in database" in str(e):
+                    await interaction.followup.send(
+                        f"Video is already in database!\nhttps://randomyt.lueyo.es/?id={video_id}",
+                        ephemeral=True,
+                    )
+                else:
+                    await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+            except Exception as e:
+                await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+
+    async def start(self, token: str):
+        if not token:
+            print("Discord bot token not configured. Bot will not start.")
+            return
+        try:
+            await self.bot.start(token)
+        except Exception as e:
+            print(f"Failed to start Discord bot: {e}")
+
+    def run(self, token: str):
+        if not token:
+            print("Discord bot token not configured. Bot will not run.")
+            return
+        self.bot.run(token)
