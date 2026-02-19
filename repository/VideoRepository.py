@@ -375,7 +375,7 @@ class VideoRepository(IVideoRepository):
         Busca videos por título y opcionalmente por tags.
 
         Args:
-            query: Texto a buscar en el título (búsqueda parcial, case-insensitive)
+            query: Texto a buscar en el título (búsqueda parcial, case-insensitive y accent-insensitive)
             tags: Lista opcional de tags para filtrar (videos que tengan al menos uno de estos tags)
             skip: Número de documentos a omitir (para paginación)
             limit: Número máximo de documentos a devolver
@@ -391,10 +391,15 @@ class VideoRepository(IVideoRepository):
 
         sort_order = 1 if sort == "asc" else -1
 
-        total = await db_client.videos.count_documents(filter_query)
+        # Collation configuration for accent-insensitive and case-insensitive search
+        collation = {"locale": "es", "strength": 1}
+
+        total = await db_client.videos.count_documents(
+            filter_query, collation=collation
+        )
 
         cursor = (
-            db_client.videos.find(filter_query)
+            db_client.videos.find(filter_query, collation=collation)
             .sort("upload_date", sort_order)
             .skip(skip)
             .limit(limit)
@@ -427,7 +432,7 @@ class VideoRepository(IVideoRepository):
         Busca videos combinando filtros de título, tags y fechas.
 
         Args:
-            query: Texto opcional a buscar en el título (búsqueda parcial, case-insensitive)
+            query: Texto opcional a buscar en el título (búsqueda parcial, case-insensitive y accent-insensitive)
             tags: Lista opcional de tags para filtrar (videos que tengan al menos uno de estos tags)
             day: Fecha específica opcional (datetime con hora 00:00:00)
             start_day: Fecha de inicio opcional del rango
@@ -468,10 +473,15 @@ class VideoRepository(IVideoRepository):
 
         sort_order = 1 if sort == "asc" else -1
 
-        total = await db_client.videos.count_documents(filter_query)
+        # Collation configuration for accent-insensitive and case-insensitive search
+        collation = {"locale": "es", "strength": 1}
+
+        total = await db_client.videos.count_documents(
+            filter_query, collation=collation
+        )
 
         cursor = (
-            db_client.videos.find(filter_query)
+            db_client.videos.find(filter_query, collation=collation)
             .sort("upload_date", sort_order)
             .skip(skip)
             .limit(limit)
