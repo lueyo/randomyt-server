@@ -21,7 +21,7 @@ class LueyoBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
-        super().__init__(command_prefix="!", intents=intents, help_command=None)
+        super().__init__(command_prefix="ryt ", intents=intents, help_command=None)
 
     async def setup_hook(self):
         await self.tree.sync(guild=None)
@@ -128,6 +128,57 @@ class LueyoBot(commands.Bot):
 
 def run_bot(token: str):
     bot = LueyoBot()
+
+    @bot.command(name="random")
+    async def prefix_random(ctx, start_day: Optional[str] = None, end_day: Optional[str] = None):
+        try:
+            video_service = get_video_service()
+            if start_day and end_day:
+                video = await video_service.get_random_video_by_interval(start_day, end_day)
+            elif start_day:
+                video = await video_service.get_random_video_by_day(start_day)
+            else:
+                video = await video_service.get_random_video()
+
+            if video:
+                await ctx.send(f"https://randomyt.lueyo.es/?id={video.id}")
+            else:
+                await ctx.send("No videos found.")
+        except Exception as e:
+            await ctx.send(f"Error: {str(e)}")
+
+    @bot.command(name="randomyt")
+    async def prefix_randomyt(ctx, start_day: Optional[str] = None, end_day: Optional[str] = None):
+        await ctx.invoke(prefix_random, start_day, end_day)
+
+    @bot.command(name="publish")
+    async def prefix_publish(ctx, url: str):
+        video_id = extract_video_id(url)
+        if not video_id:
+            await ctx.send("Could not extract video ID from URL.")
+            return
+
+        try:
+            video_service = get_video_service()
+            await video_service.publish_video(PublishVideoRequest(video_id=video_id))
+            await ctx.send(f"Video published successfully!\nhttps://randomyt.lueyo.es/?id={video_id}")
+        except ValueError as e:
+            if "Video is in database" in str(e):
+                await ctx.send(f"Video is already in database!\nhttps://randomyt.lueyo.es/?id={video_id}")
+            else:
+                await ctx.send(f"Error: {str(e)}")
+        except Exception as e:
+            await ctx.send(f"Error: {str(e)}")
+
+    @bot.command(name="searchinsert")
+    async def prefix_searchinsert(ctx, *, search: str):
+        try:
+            task_service = get_task_service()
+            task_id = await task_service.add_task(search)
+            await ctx.send(f"Task inserted successfully! Task ID: {task_id}")
+        except Exception as e:
+            await ctx.send(f"Error: {str(e)}")
+
     bot.run(token)
 
 
