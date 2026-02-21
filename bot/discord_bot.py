@@ -17,7 +17,7 @@ def extract_video_id(url: str) -> Optional[str]:
 
 class DiscordBot:
     def __init__(self):
-        self.bot = commands.Bot(intents=discord.Intents.default(), command_prefix="/")
+        self.bot = discord.Bot(intents=discord.Intents.default())
         self._setup_commands()
 
     def _setup_commands(self):
