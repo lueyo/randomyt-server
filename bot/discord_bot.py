@@ -123,9 +123,10 @@ class DiscordBot:
             print("Discord bot token not configured. Bot will not start.")
             return
         try:
-            async with self.bot:
-                await self.bot.tree.sync()
-                await self.bot.start(token)
+            await self.bot.login(token)
+            await self.bot.wait_until_ready()
+            await self.bot.tree.sync()
+            await self.bot.connect()
         except Exception as e:
             print(f"Failed to start Discord bot: {e}")
 
