@@ -17,11 +17,13 @@ def extract_video_id(url: str) -> Optional[str]:
 
 class DiscordBot:
     def __init__(self):
-        self.bot = discord.Bot(intents=discord.Intents.default())
+        intents = discord.Intents.default()
+        intents.message_content = True
+        self.bot = commands.Bot(intents=intents, command_prefix="/")
         self._setup_commands()
 
     def _setup_commands(self):
-        @self.bot.slash_command(name="random", description="Get a random YouTube video")
+        @self.bot.tree.command(name="random", description="Get a random YouTube video")
         @app_commands.describe(start_day="Start date in format dd/MM/YYYY")
         @app_commands.describe(end_day="End date in format dd/MM/YYYY")
         async def random_cmd(
@@ -53,7 +55,7 @@ class DiscordBot:
                     f"Error: {str(e)}", ephemeral=True
                 )
 
-        @self.bot.slash_command(
+        @self.bot.tree.command(
             name="randomyt", description="Get a random YouTube video (alias for /random)"
         )
         @app_commands.describe(start_day="Start date in format dd/MM/YYYY")
@@ -65,7 +67,7 @@ class DiscordBot:
         ):
             await random_cmd(interaction, start_day, end_day)
 
-        @self.bot.slash_command(
+        @self.bot.tree.command(
             name="publish", description="Publish a YouTube video to the database"
         )
         @app_commands.describe(url="YouTube video URL")
@@ -98,7 +100,7 @@ class DiscordBot:
             except Exception as e:
                 await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
 
-        @self.bot.slash_command(
+        @self.bot.tree.command(
             name="searchinsert", description="Insert a new search task"
         )
         @app_commands.describe(search="Search term to insert as task")
@@ -121,7 +123,9 @@ class DiscordBot:
             print("Discord bot token not configured. Bot will not start.")
             return
         try:
-            await self.bot.start(token)
+            async with self.bot:
+                await self.bot.tree.sync()
+                await self.bot.start(token)
         except Exception as e:
             print(f"Failed to start Discord bot: {e}")
 
