@@ -24,7 +24,7 @@ class LueyoBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents, help_command=None)
 
     async def setup_hook(self):
-        await self.tree.sync()
+        await self.tree.sync(guild=None)
         print(f"Bot conectado como {self.user}")
         print("Sincronización completada: Comandos de barra (/) listos.")
         await self._setup_commands()
