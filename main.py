@@ -482,6 +482,7 @@ async def add_task_search(
     - The ID of the newly created task.
     """
     trimmed_term = request.search_term.strip()
+    trimmed_term.lower()
     if not trimmed_term:
         raise HTTPException(status_code=400, detail="search_term cannot be empty")
 
