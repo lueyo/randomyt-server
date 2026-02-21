@@ -518,11 +518,13 @@ async def start_task_processor():
 @app.on_event("startup")
 async def start_discord_bot():
     global _discord_bot_task
-    if DISCORD_YT_RAMDOM:
+    token = DISCORD_YT_RAMDOM
+    print(f"Discord token configured: {bool(token)}")
+    if token:
         try:
             from bot.discord_bot import DiscordBot
             bot = DiscordBot()
-            _discord_bot_task = asyncio.create_task(bot.start(DISCORD_YT_RAMDOM))
+            _discord_bot_task = asyncio.create_task(bot.start(token))
         except Exception as e:
             print(f"Failed to start Discord bot: {e}")
     else:
