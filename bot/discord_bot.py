@@ -1,4 +1,3 @@
-import asyncio
 import re
 from typing import Optional
 
@@ -6,6 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import threading
+import asyncio
 
 from common.ioc import get_video_service, get_task_service
 from models.controller.input.publish_video_request import PublishVideoRequest
@@ -17,15 +17,20 @@ def extract_video_id(url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
-class DiscordBot:
+class LueyoBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
         intents.message_content = True
-        self.bot = commands.Bot(intents=intents, command_prefix="/")
-        self._setup_commands()
+        super().__init__(command_prefix="!", intents=intents, help_command=None)
 
-    def _setup_commands(self):
-        @self.bot.tree.command(name="random", description="Get a random YouTube video")
+    async def setup_hook(self):
+        await self.tree.sync()
+        print(f"Bot conectado como {self.user}")
+        print("Sincronización completada: Comandos de barra (/) listos.")
+        await self._setup_commands()
+
+    async def _setup_commands(self):
+        @self.tree.command(name="random", description="Get a random YouTube video")
         @app_commands.describe(start_day="Start date in format dd/MM/YYYY")
         @app_commands.describe(end_day="End date in format dd/MM/YYYY")
         async def random_cmd(
@@ -57,7 +62,7 @@ class DiscordBot:
                     f"Error: {str(e)}", ephemeral=True
                 )
 
-        @self.bot.tree.command(
+        @self.tree.command(
             name="randomyt", description="Get a random YouTube video (alias for /random)"
         )
         @app_commands.describe(start_day="Start date in format dd/MM/YYYY")
@@ -69,7 +74,7 @@ class DiscordBot:
         ):
             await random_cmd(interaction, start_day, end_day)
 
-        @self.bot.tree.command(
+        @self.tree.command(
             name="publish", description="Publish a YouTube video to the database"
         )
         @app_commands.describe(url="YouTube video URL")
@@ -102,7 +107,7 @@ class DiscordBot:
             except Exception as e:
                 await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
 
-        @self.bot.tree.command(
+        @self.tree.command(
             name="searchinsert", description="Insert a new search task"
         )
         @app_commands.describe(search="Search term to insert as task")
@@ -120,36 +125,20 @@ class DiscordBot:
             except Exception as e:
                 await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
 
+
+def run_bot(token: str):
+    bot = LueyoBot()
+    bot.run(token)
+
+
+class DiscordBot:
+    def __init__(self):
+        self.bot = None
+
     async def start(self, token: str):
         if not token:
             print("Discord bot token not configured. Bot will not start.")
             return
-        try:
-            print("Starting Discord bot in background thread...")
-            def run_bot():
-                asyncio.run(self._run_bot(token))
-            thread = threading.Thread(target=run_bot, daemon=True)
-            thread.start()
-        except Exception as e:
-            print(f"Failed to start Discord bot: {e}")
-
-    async def _run_bot(self, token: str):
-        try:
-            print("Discord bot: logging in...")
-            await self.bot.login(token)
-            print("Discord bot: connecting...")
-            await self.bot.connect()
-            await self.bot.wait_until_ready()
-            print("Discord bot: syncing commands...")
-            await self.bot.tree.sync()
-            print("Discord bot: connected and running")
-        except Exception as e:
-            print(f"Discord bot error: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def run(self, token: str):
-        if not token:
-            print("Discord bot token not configured. Bot will not run.")
-            return
-        self.bot.run(token)
+        print("Starting Discord bot in background thread...")
+        thread = threading.Thread(target=run_bot, args=(token,), daemon=True)
+        thread.start()
