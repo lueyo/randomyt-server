@@ -4,7 +4,7 @@ from typing import Optional
 import discord
 from discord import app_commands
 
-from common.ioc import get_video_service
+from common.ioc import get_video_service, get_task_service
 from models.controller.input.publish_video_request import PublishVideoRequest
 
 
@@ -94,6 +94,24 @@ class DiscordBot:
                     )
                 else:
                     await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+            except Exception as e:
+                await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+
+        @self.bot.slash_command(
+            name="searchinsert", description="Insert a new search task"
+        )
+        @app_commands.describe(search="Search term to insert as task")
+        async def searchinsert_cmd(interaction: discord.Interaction, search: str):
+            await interaction.response.defer(ephemeral=True)
+
+            try:
+                task_service = get_task_service()
+                task_id = await task_service.add_task(search)
+
+                await interaction.followup.send(
+                    f"Task inserted successfully! Task ID: {task_id}",
+                    ephemeral=True,
+                )
             except Exception as e:
                 await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
 
