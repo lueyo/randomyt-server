@@ -18,12 +18,12 @@ def get_video_repository() -> IVideoRepository:
     return _video_repository_instance
 
 
-def get_video_service(
-    video_repository: IVideoRepository = Depends(get_video_repository),
-) -> IVideoService:
-    global _video_service_instance
+def get_video_service() -> IVideoService:
+    global _video_repository_instance, _video_service_instance
+    if _video_repository_instance is None:
+        _video_repository_instance = VideoRepository()
     if _video_service_instance is None:
-        _video_service_instance = VideoService(video_repository)
+        _video_service_instance = VideoService(_video_repository_instance)
     return _video_service_instance
 
 

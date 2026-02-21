@@ -33,7 +33,7 @@ _task_processor_task = None
 _task_event = None
 
 
-async def process_tasks_loop(taskService: ITaskService, task_event: asyncio.Event):
+async def process_tasks_loop(taskService: ITaskService, task_event: asyncio.Event, videoService):
     from common.utils.search_and_insert import buscar_y_procesar
 
     print("Starting task processor...")
@@ -48,7 +48,7 @@ async def process_tasks_loop(taskService: ITaskService, task_event: asyncio.Even
 
             print(f"Processing task: {task.name}")
             try:
-                buscar_y_procesar(task.name)
+                await buscar_y_procesar(task.name, videoService)
             except Exception as e:
                 print(f"Error processing task {task.name}: {e}")
 
@@ -505,7 +505,13 @@ async def start_task_processor():
     global _task_processor_task, _task_event
     _task_event = asyncio.Event()
     task_service = get_task_service()
-    _task_processor_task = asyncio.create_task(process_tasks_loop(task_service, _task_event))
+    video_service = get_video_service()
+    
+    initial_task = await task_service.get_next_pending_task()
+    if initial_task:
+        _task_event.set()
+    
+    _task_processor_task = asyncio.create_task(process_tasks_loop(task_service, _task_event, video_service))
 
 
 @app.on_event("startup")

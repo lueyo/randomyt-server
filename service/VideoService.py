@@ -111,7 +111,7 @@ class VideoService(IVideoService):
 
         # Check views limit
         if datos["views"] > LIMIT_VIEWS:
-            raise ValueError("Video has more than LIMIT_VIEWS views")
+            raise ValueError(f"Video has more than {LIMIT_VIEWS} views")
 
         # Validate scraped data
         if not datos["titulo"] or not isinstance(datos["titulo"], str):

@@ -6,6 +6,7 @@ import re
 import argparse
 import sys
 import os
+import asyncio
 
 from common.config import SEARCH_NUMBER
 
@@ -111,9 +112,9 @@ def estrategia_invidious(busqueda, cantidad):
 
 # --- 3. ENVÍO AL SERVIDOR ---
 
-def enviar_ids_al_servidor(lista_urls):
-    url_api = "https://randomyt-server.vps.lueyo.es/publish"
-    headers = {"accept": "application/json", "Content-Type": "application/json"}
+async def enviar_ids_al_servidor(lista_urls, videoService):
+    from models.controller.input.publish_video_request import PublishVideoRequest
+    
     patron_regex = r"(?:v=|\/)([0-9A-Za-z_-]{11})"
     print(f"🚀 Enviando {len(lista_urls)} IDs al servidor...")
 
@@ -123,24 +124,16 @@ def enviar_ids_al_servidor(lista_urls):
         match = re.search(patron_regex, url_video)
         if match:
             video_id = match.group(1)
-            payload = {"video_id": video_id}
+            request = PublishVideoRequest(video_id=video_id)
 
             try:
-                response = requests.post(
-                    url_api, headers=headers, json=payload, timeout=5
-                )
+                await videoService.publish_video(request)
+                enviados += 1
+                print(f"Insertado video con ID: {video_id}")
+            except Exception as e:
+                print(f"   ❌ Error ID {video_id}: {e}")
 
-                if response.status_code in [200, 201]:
-                    enviados += 1
-                else:
-                    print(
-                        f"   ⚠️ Fallo API ({response.status_code}) ID {video_id}: {response.text}"
-                    )
-
-            except requests.exceptions.RequestException as e:
-                print(f"   ❌ Error Conexión ID {video_id}: {e}")
-
-            time.sleep(0.05)
+            await asyncio.sleep(0.05)
         else:
             print(f"   ❓ URL sin ID válido: {url_video}")
 
@@ -149,18 +142,17 @@ def enviar_ids_al_servidor(lista_urls):
 
 # --- 4. PROCESO ÚNICO ---
 
-def buscar_y_procesar(palabra_clave):
+async def buscar_y_procesar(palabra_clave, videoService):
     """Ejecuta el ciclo completo para UNA palabra clave específica"""
     nombre_limpio = limpiar_nombre_archivo(palabra_clave)
     nombre_fichero = f"archives/yt-{nombre_limpio}.json"
     
     links_resultantes = []
 
-    # Intentamos las estrategias en cascada
     try:
         links_resultantes = estrategia_ytdlp(palabra_clave, SEARCH_NUMBER)
     except Exception:
-        pass  # Fallo yt-dlp, pasamos al siguiente
+        pass
 
     if not links_resultantes:
         try:
@@ -174,12 +166,11 @@ def buscar_y_procesar(palabra_clave):
         except Exception:
             pass
 
-    # Quitamos duplicados por si acaso, manteniendo el orden
-    links_resultantes = list(dict.fromkeys(links_resultantes))
+    links_resultantes = list(dict.fromkeys(links_resultantes)).reverse()
 
 
     if links_resultantes:
-        enviar_ids_al_servidor(links_resultantes)
+        await enviar_ids_al_servidor(links_resultantes, videoService)
     else:
         print(f"⚠️ Sin videos encontrados para la búsqueda: '{palabra_clave}'")
 
