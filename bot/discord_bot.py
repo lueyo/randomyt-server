@@ -139,6 +139,9 @@ class DiscordBot:
             await self.bot.login(token)
             print("Discord bot: connecting...")
             await self.bot.connect()
+            await self.bot.wait_until_ready()
+            print("Discord bot: syncing commands...")
+            await self.bot.tree.sync()
             print("Discord bot: connected and running")
         except Exception as e:
             print(f"Discord bot error: {e}")
