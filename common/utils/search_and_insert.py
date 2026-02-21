@@ -166,7 +166,8 @@ async def buscar_y_procesar(palabra_clave, videoService):
         except Exception:
             pass
 
-    links_resultantes = list(dict.fromkeys(links_resultantes)).reverse()
+    links_resultantes = list(dict.fromkeys(links_resultantes))
+    links_resultantes.reverse()
 
 
     if links_resultantes:
