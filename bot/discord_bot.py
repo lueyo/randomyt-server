@@ -3,6 +3,7 @@ from typing import Optional
 
 import discord
 from discord import app_commands
+from discord.ext import commands
 
 from common.ioc import get_video_service, get_task_service
 from models.controller.input.publish_video_request import PublishVideoRequest
@@ -16,7 +17,7 @@ def extract_video_id(url: str) -> Optional[str]:
 
 class DiscordBot:
     def __init__(self):
-        self.bot = discord.Bot(intents=discord.Intents.default())
+        self.bot = commands.Bot(intents=discord.Intents.default(), command_prefix="/")
         self._setup_commands()
 
     def _setup_commands(self):
