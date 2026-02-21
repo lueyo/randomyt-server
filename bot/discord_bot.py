@@ -51,7 +51,7 @@ class LueyoBot(commands.Bot):
 
                 if video:
                     await interaction.response.send_message(
-                        f"https://randomyt.lueyo.es/?id={video.id}"
+                        f"https://youtu.be/{video.id}"
                     )
                 else:
                     await interaction.response.send_message(
@@ -141,7 +141,7 @@ def run_bot(token: str):
                 video = await video_service.get_random_video()
 
             if video:
-                await ctx.send(f"https://randomyt.lueyo.es/?id={video.id}")
+                await ctx.send(f"https://youtu.be/{video.id}")
             else:
                 await ctx.send("No videos found.")
         except Exception as e:
@@ -178,6 +178,45 @@ def run_bot(token: str):
             await ctx.send(f"Task inserted successfully! Task ID: {task_id}")
         except Exception as e:
             await ctx.send(f"Error: {str(e)}")
+
+    @bot.command(name="help")
+    async def prefix_help(ctx):
+        embed = discord.Embed(
+            title="📚 Randomyt Bot - Comandos",
+            description="Usa los siguientes comandos con el prefijo `ryt `",
+            color=discord.Color.blue()
+        )
+        embed.add_field(
+            name="🎲 random",
+            value="Obtiene un video aleatorio de YouTube",
+            inline=False
+        )
+        embed.add_field(
+            name="📅 random <fecha>",
+            value="Obtiene un video aleatorio de una fecha específica (dd/MM/YYYY)",
+            inline=False
+        )
+        embed.add_field(
+            name="📅 random <inicio> <fin>",
+            value="Obtiene un video aleatorio en un intervalo de fechas",
+            inline=False
+        )
+        embed.add_field(
+            name="📤 publish <url>",
+            value="Publica un video de YouTube en la base de datos",
+            inline=False
+        )
+        embed.add_field(
+            name="🔍 searchinsert <busqueda>",
+            value="Inserta una tarea de búsqueda",
+            inline=False
+        )
+        embed.add_field(
+            name="❓ help",
+            value="Muestra este mensaje de ayuda",
+            inline=False
+        )
+        await ctx.send(embed=embed)
 
     bot.run(token)
 
