@@ -1,9 +1,11 @@
+import asyncio
 import re
 from typing import Optional
 
 import discord
 from discord import app_commands
 from discord.ext import commands
+import threading
 
 from common.ioc import get_video_service, get_task_service
 from models.controller.input.publish_video_request import PublishVideoRequest
@@ -123,10 +125,23 @@ class DiscordBot:
             print("Discord bot token not configured. Bot will not start.")
             return
         try:
-            print("Starting Discord bot...")
-            self.bot.run(token)
+            print("Starting Discord bot in background thread...")
+            def run_bot():
+                asyncio.run(self._run_bot(token))
+            thread = threading.Thread(target=run_bot, daemon=True)
+            thread.start()
         except Exception as e:
             print(f"Failed to start Discord bot: {e}")
+
+    async def _run_bot(self, token: str):
+        try:
+            async with self.bot:
+                await self.bot.wait_until_ready()
+                await self.bot.tree.sync()
+                await self.bot.start(token)
+                await self.bot.close()
+        except Exception as e:
+            print(f"Discord bot error: {e}")
 
     def run(self, token: str):
         if not token:
