@@ -1,13 +1,14 @@
 import re
 from typing import Optional
-
 import discord
 from discord import app_commands
 from discord.ext import commands
+import threading
 import asyncio
+import aiohttp
+import os
 
-from common.ioc import get_video_service, get_task_service
-from models.controller.input.publish_video_request import PublishVideoRequest
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://randomyt-server.vps.lueyo.es")
 
 
 def extract_video_id(url: str) -> Optional[str]:
@@ -16,29 +17,33 @@ def extract_video_id(url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
-async def get_random_video(
-    start_day: Optional[str] = None,
-    end_day: Optional[str] = None,
-):
-    video_service = get_video_service()
-    if start_day and end_day:
-        video = await video_service.get_random_video_by_interval(start_day, end_day)
-    elif start_day:
-        video = await video_service.get_random_video_by_day(start_day)
-    else:
-        video = await video_service.get_random_video()
-    return video
+async def api_get_random_video(session: aiohttp.ClientSession, start_day: Optional[str] = None, end_day: Optional[str] = None):
+    params = {}
+    if start_day:
+        params["startDay"] = start_day
+    if end_day:
+        params["endDay"] = end_day
+    async with session.get(f"{API_BASE_URL}/random", params=params) as response:
+        if response.status == 404:
+            return None
+        response.raise_for_status()
+        return await response.json()
 
 
-async def publish_video(video_id: str):
-    video_service = get_video_service()
-    await video_service.publish_video(PublishVideoRequest(video_id=video_id))
+async def api_publish_video(session: aiohttp.ClientSession, url: str):
+    video_id = extract_video_id(url)
+    if not video_id:
+        raise ValueError("Could not extract video ID from URL.")
+    
+    async with session.post(f"{API_BASE_URL}/publish", json={"video_id": video_id}) as response:
+        response.raise_for_status()
+        return await response.json()
 
 
-async def add_search_task(search: str):
-    task_service = get_task_service()
-    task_id = await task_service.add_task(search)
-    return task_id
+async def api_add_search_task(session: aiohttp.ClientSession, search: str):
+    async with session.post(f"{API_BASE_URL}/task-search", json={"search_term": search}) as response:
+        response.raise_for_status()
+        return await response.json()
 
 
 class LueyoBot(commands.Bot):
@@ -46,12 +51,19 @@ class LueyoBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
         super().__init__(command_prefix="ryt ", intents=intents, help_command=None)
+        self.http_session: Optional[aiohttp.ClientSession] = None
 
     async def setup_hook(self):
+        self.http_session = aiohttp.ClientSession()
         await self.tree.sync(guild=None)
         print(f"Bot conectado como {self.user}")
         print("Sincronización completada: Comandos de barra (/) listos.")
         await self._setup_commands()
+
+    async def close(self):
+        if self.http_session:
+            await self.http_session.close()
+        await super().close()
 
     async def _setup_commands(self):
         @self.tree.command(name="random", description="Get a random YouTube video")
@@ -63,13 +75,13 @@ class LueyoBot(commands.Bot):
             end_day: Optional[str] = None,
         ):
             try:
-                video = await get_random_video(start_day, end_day)
+                video = await api_get_random_video(self.http_session, start_day, end_day)
                 if video:
-                    await interaction.response.send_message(f"https://youtu.be/{video.id}")
+                    await interaction.response.send_message(f"https://youtu.be/{video['id']}")
                 else:
                     await interaction.response.send_message("No videos found.", ephemeral=True)
             except Exception as e:
-                await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
+                await interaction.response.send_message("Error: An error occurred while processing your request.", ephemeral=True)
 
         @self.tree.command(
             name="randomyt", description="Get a random YouTube video (alias for /random)"
@@ -98,7 +110,7 @@ class LueyoBot(commands.Bot):
                 return
 
             try:
-                await publish_video(video_id)
+                await api_publish_video(self.http_session, url)
                 await interaction.followup.send(
                     f"Video published successfully!\nhttps://randomyt.lueyo.es/?id={video_id}",
                     ephemeral=True,
@@ -110,9 +122,9 @@ class LueyoBot(commands.Bot):
                         ephemeral=True,
                     )
                 else:
-                    await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+                    await interaction.followup.send("Error: An error occurred while processing your request.", ephemeral=True)
             except Exception as e:
-                await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+                await interaction.followup.send("Error: An error occurred while processing your request.", ephemeral=True)
 
         @self.tree.command(
             name="massinsert", description="Insert a new search task"
@@ -122,9 +134,9 @@ class LueyoBot(commands.Bot):
             await interaction.response.defer(ephemeral=True)
 
             try:
-                task_id = await add_search_task(search)
+                result = await api_add_search_task(self.http_session, search)
                 await interaction.followup.send(
-                    f"Task inserted successfully! Task ID: {task_id}",
+                    f"Task inserted successfully! Task ID: {result['id']}",
                     ephemeral=True,
                 )
             except Exception as e:
@@ -132,89 +144,70 @@ class LueyoBot(commands.Bot):
 
 
 def run_bot(token: str):
-    bot = LueyoBot()
+    import asyncio
+    
+    async def run_async():
+        bot = LueyoBot()
+        
+        @bot.command(name="random")
+        async def prefix_random(ctx, start_day: Optional[str] = None, end_day: Optional[str] = None):
+            try:
+                video = await api_get_random_video(bot.http_session, start_day, end_day)
+                if video:
+                    await ctx.send(f"https://youtu.be/{video['id']}")
+                else:
+                    await ctx.send("No videos found.")
+            except Exception as e:
+                await ctx.send("Error: An error occurred while processing your request.")
 
-    @bot.command(name="random")
-    async def prefix_random(ctx, start_day: Optional[str] = None, end_day: Optional[str] = None):
-        try:
-            video = await get_random_video(start_day, end_day)
-            if video:
-                await ctx.send(f"https://youtu.be/{video.id}")
-            else:
-                await ctx.send("No videos found.")
-        except Exception as e:
-            await ctx.send(f"Error: {str(e)}")
+        @bot.command(name="randomyt")
+        async def prefix_randomyt(ctx, start_day: Optional[str] = None, end_day: Optional[str] = None):
+            await prefix_random(ctx, start_day, end_day)
 
-    @bot.command(name="randomyt")
-    async def prefix_randomyt(ctx, start_day: Optional[str] = None, end_day: Optional[str] = None):
-        await prefix_random(ctx, start_day, end_day)
+        @bot.command(name="publish")
+        async def prefix_publish(ctx, url: str):
+            video_id = extract_video_id(url)
+            if not video_id:
+                await ctx.send("Could not extract video ID from URL.")
+                return
 
-    @bot.command(name="publish")
-    async def prefix_publish(ctx, url: str):
-        video_id = extract_video_id(url)
-        if not video_id:
-            await ctx.send("Could not extract video ID from URL.")
-            return
+            try:
+                await api_publish_video(bot.http_session, url)
+                await ctx.send(f"Video published successfully!\nhttps://randomyt.lueyo.es/?id={video_id}")
+            except ValueError as e:
+                if "Video is in database" in str(e):
+                    await ctx.send(f"Video is already in database!\nhttps://randomyt.lueyo.es/?id={video_id}")
+                else:
+                    await ctx.send("Error: An error occurred while processing your request.")
+            except Exception as e:
+                await ctx.send("Error: An error occurred while processing your request.")
 
-        try:
-            await publish_video(video_id)
-            await ctx.send(f"Video published successfully!\nhttps://randomyt.lueyo.es/?id={video_id}")
-        except ValueError as e:
-            if "Video is in database" in str(e):
-                await ctx.send(f"Video is already in database!\nhttps://randomyt.lueyo.es/?id={video_id}")
-            else:
-                await ctx.send(f"Error: {str(e)}")
-        except Exception as e:
-            await ctx.send(f"Error: {str(e)}")
+        @bot.command(name="massinsert")
+        async def prefix_massinsert(ctx, *, search: str):
+            try:
+                result = await api_add_search_task(bot.http_session, search)
+                await ctx.send(f"Task inserted successfully! Task ID: {result['id']}")
+            except Exception as e:
+                await ctx.send("Error: An error occurred while processing your request.")
 
-    @bot.command(name="massinsert")
-    async def prefix_massinsert(ctx, *, search: str):
-        try:
-            task_id = await add_search_task(search)
-            await ctx.send(f"Task inserted successfully! Task ID: {task_id}")
-        except Exception as e:
-            await ctx.send("Error: An error occurred while processing your request.")
+        @bot.command(name="help")
+        async def prefix_help(ctx):
+            embed = discord.Embed(
+                title="📚 Randomyt Bot - Comandos",
+                description="Usa los siguientes comandos con el prefijo `ryt `",
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="🎲 random", value="Obtiene un video aleatorio de YouTube", inline=False)
+            embed.add_field(name="📅 random <fecha>", value="Obtiene un video aleatorio de una fecha específica (dd/MM/YYYY)", inline=False)
+            embed.add_field(name="📅 random <inicio> <fin>", value="Obtiene un video aleatorio en un intervalo de fechas", inline=False)
+            embed.add_field(name="📤 publish <url>", value="Publica un video de YouTube en la base de datos", inline=False)
+            embed.add_field(name="🔍 massinsert <busqueda>", value="Inserta una tarea de búsqueda", inline=False)
+            embed.add_field(name="❓ help", value="Muestra este mensaje de ayuda", inline=False)
+            await ctx.send(embed=embed)
 
-    @bot.command(name="help")
-    async def prefix_help(ctx):
-        embed = discord.Embed(
-            title="📚 Randomyt Bot - Comandos",
-            description="Usa los siguientes comandos con el prefijo `ryt `",
-            color=discord.Color.blue()
-        )
-        embed.add_field(
-            name="🎲 random",
-            value="Obtiene un video aleatorio de YouTube",
-            inline=False
-        )
-        embed.add_field(
-            name="📅 random <fecha>",
-            value="Obtiene un video aleatorio de una fecha específica (dd/MM/YYYY)",
-            inline=False
-        )
-        embed.add_field(
-            name="📅 random <inicio> <fin>",
-            value="Obtiene un video aleatorio en un intervalo de fechas",
-            inline=False
-        )
-        embed.add_field(
-            name="📤 publish <url>",
-            value="Publica un video de YouTube en la base de datos",
-            inline=False
-        )
-        embed.add_field(
-            name="🔍 massinsert <busqueda>",
-            value="Inserta una tarea de búsqueda",
-            inline=False
-        )
-        embed.add_field(
-            name="❓ help",
-            value="Muestra este mensaje de ayuda",
-            inline=False
-        )
-        await ctx.send(embed=embed)
+        await bot.start(token)
 
-    bot.run(token)
+    asyncio.run(run_async())
 
 
 class DiscordBot:
@@ -225,10 +218,6 @@ class DiscordBot:
         if not token:
             print("Discord bot token not configured. Bot will not start.")
             return
-        
-        async def run_async():
-            bot_instance = LueyoBot()
-            self.bot = bot_instance
-            await bot_instance.start(token)
-        
-        await run_async()
+        print("Starting Discord bot in background thread...")
+        thread = threading.Thread(target=run_bot, args=(token,), daemon=True)
+        thread.start()
