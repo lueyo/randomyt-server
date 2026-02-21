@@ -10,3 +10,5 @@ LIMIT_VIEWS = int(os.getenv("LIMIT_VIEWS", 2000))
 
 # si no se puede conectar al bot no pasa nada pijes, se intentó
 DISCORD_YT_RAMDOM = os.getenv("DISCORD_YT_RAMDOM_TOKEN", "")
+
+SEARCH_NUMBER = int(os.getenv("SEARCH_NUMBER", 300))

@@ -1,12 +1,14 @@
 from fastapi import Depends, FastAPI, HTTPException, Query
-from common.ioc import get_video_service
+from common.ioc import get_video_service, get_task_service
 from common.config import DISCORD_YT_RAMDOM
 from models.controller.input.array_of_ids import ArrayOfIDsRequest
+from models.controller.input.task_search_request import TaskSearchRequest
 from models.controller.output.video_controller import VideoSchema
 from models.domain.video_model import VideoModel
 from models.controller.input.publish_video_request import PublishVideoRequest
 from models.controller.output.page_model import PageModel
 from service.VideoService import VideoService, IVideoService
+from service.TaskService import ITaskService
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, FileResponse
@@ -25,6 +27,35 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_discord_bot_task = None
+_task_processor_task = None
+_task_event = None
+
+
+async def process_tasks_loop(taskService: ITaskService, task_event: asyncio.Event):
+    from common.utils.search_and_insert import buscar_y_procesar
+
+    print("Starting task processor...")
+    while True:
+        await task_event.wait()
+        task_event.clear()
+
+        while True:
+            task = await taskService.get_next_pending_task()
+            if not task:
+                break
+
+            print(f"Processing task: {task.name}")
+            try:
+                buscar_y_procesar(task.name)
+            except Exception as e:
+                print(f"Error processing task {task.name}: {e}")
+
+            await taskService.mark_task_completed(task.id)
+            print(f"Task completed: {task.name}")
+
+        print("No more pending tasks. Waiting for new tasks...")
 
 
 @app.get("/")
@@ -432,12 +463,49 @@ async def search_combined(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/task-search")
+async def add_task_search(
+    request: TaskSearchRequest,
+    taskService: ITaskService = Depends(get_task_service),
+):
+    """
+    Adds a new search task to the queue.
+
+    This endpoint adds a new search term to the task queue.
+    The search term will be trimmed and processed by a background job.
+    If a task with the same name already exists, returns a 409 Conflict error.
+
+    - **request**: Pydantic model containing the search term.
+      - **search_term**: The search term to find videos for (required).
+
+    Returns:
+    - The ID of the newly created task.
+    """
+    trimmed_term = request.search_term.strip()
+    if not trimmed_term:
+        raise HTTPException(status_code=400, detail="search_term cannot be empty")
+
+    exists = await taskService.task_exists_by_name(trimmed_term)
+    if exists:
+        raise HTTPException(status_code=409, detail="A task with this name already exists")
+
+    task_id = await taskService.add_task(trimmed_term)
+    if _task_event:
+        _task_event.set()
+    return {"id": task_id, "search_term": trimmed_term}
+
+
 @app.get("/favicon.ico")
 async def favicon():
     return FileResponse("static/favicon.png")
 
 
-_discord_bot_task = None
+@app.on_event("startup")
+async def start_task_processor():
+    global _task_processor_task, _task_event
+    _task_event = asyncio.Event()
+    task_service = get_task_service()
+    _task_processor_task = asyncio.create_task(process_tasks_loop(task_service, _task_event))
 
 
 @app.on_event("startup")
