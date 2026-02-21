@@ -17,6 +17,31 @@ def extract_video_id(url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+async def get_random_video(
+    start_day: Optional[str] = None,
+    end_day: Optional[str] = None,
+):
+    video_service = get_video_service()
+    if start_day and end_day:
+        video = await video_service.get_random_video_by_interval(start_day, end_day)
+    elif start_day:
+        video = await video_service.get_random_video_by_day(start_day)
+    else:
+        video = await video_service.get_random_video()
+    return video
+
+
+async def publish_video(video_id: str):
+    video_service = get_video_service()
+    await video_service.publish_video(PublishVideoRequest(video_id=video_id))
+
+
+async def add_search_task(search: str):
+    task_service = get_task_service()
+    task_id = await task_service.add_task(search)
+    return task_id
+
+
 class LueyoBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
@@ -39,28 +64,13 @@ class LueyoBot(commands.Bot):
             end_day: Optional[str] = None,
         ):
             try:
-                video_service = get_video_service()
-                if start_day and end_day:
-                    video = await video_service.get_random_video_by_interval(
-                        start_day, end_day
-                    )
-                elif start_day:
-                    video = await video_service.get_random_video_by_day(start_day)
-                else:
-                    video = await video_service.get_random_video()
-
+                video = await get_random_video(start_day, end_day)
                 if video:
-                    await interaction.response.send_message(
-                        f"https://youtu.be/{video.id}"
-                    )
+                    await interaction.response.send_message(f"https://youtu.be/{video.id}")
                 else:
-                    await interaction.response.send_message(
-                        "No videos found.", ephemeral=True
-                    )
+                    await interaction.response.send_message("No videos found.", ephemeral=True)
             except Exception as e:
-                await interaction.response.send_message(
-                    f"Error: {str(e)}", ephemeral=True
-                )
+                await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
 
         @self.tree.command(
             name="randomyt", description="Get a random YouTube video (alias for /random)"
@@ -89,9 +99,7 @@ class LueyoBot(commands.Bot):
                 return
 
             try:
-                video_service = get_video_service()
-                await video_service.publish_video(PublishVideoRequest(video_id=video_id))
-
+                await publish_video(video_id)
                 await interaction.followup.send(
                     f"Video published successfully!\nhttps://randomyt.lueyo.es/?id={video_id}",
                     ephemeral=True,
@@ -108,16 +116,14 @@ class LueyoBot(commands.Bot):
                 await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
 
         @self.tree.command(
-            name="searchinsert", description="Insert a new search task"
+            name="massinsert", description="Insert a new search task"
         )
         @app_commands.describe(search="Search term to insert as task")
-        async def searchinsert_cmd(interaction: discord.Interaction, search: str):
+        async def massinsert_cmd(interaction: discord.Interaction, search: str):
             await interaction.response.defer(ephemeral=True)
 
             try:
-                task_service = get_task_service()
-                task_id = await task_service.add_task(search)
-
+                task_id = await add_search_task(search)
                 await interaction.followup.send(
                     f"Task inserted successfully! Task ID: {task_id}",
                     ephemeral=True,
@@ -132,14 +138,7 @@ def run_bot(token: str):
     @bot.command(name="random")
     async def prefix_random(ctx, start_day: Optional[str] = None, end_day: Optional[str] = None):
         try:
-            video_service = get_video_service()
-            if start_day and end_day:
-                video = await video_service.get_random_video_by_interval(start_day, end_day)
-            elif start_day:
-                video = await video_service.get_random_video_by_day(start_day)
-            else:
-                video = await video_service.get_random_video()
-
+            video = await get_random_video(start_day, end_day)
             if video:
                 await ctx.send(f"https://youtu.be/{video.id}")
             else:
@@ -159,8 +158,7 @@ def run_bot(token: str):
             return
 
         try:
-            video_service = get_video_service()
-            await video_service.publish_video(PublishVideoRequest(video_id=video_id))
+            await publish_video(video_id)
             await ctx.send(f"Video published successfully!\nhttps://randomyt.lueyo.es/?id={video_id}")
         except ValueError as e:
             if "Video is in database" in str(e):
@@ -170,11 +168,10 @@ def run_bot(token: str):
         except Exception as e:
             await ctx.send(f"Error: {str(e)}")
 
-    @bot.command(name="searchinsert")
-    async def prefix_searchinsert(ctx, *, search: str):
+    @bot.command(name="massinsert")
+    async def prefix_massinsert(ctx, *, search: str):
         try:
-            task_service = get_task_service()
-            task_id = await task_service.add_task(search)
+            task_id = await add_search_task(search)
             await ctx.send(f"Task inserted successfully! Task ID: {task_id}")
         except Exception as e:
             await ctx.send(f"Error: {str(e)}")
@@ -207,7 +204,7 @@ def run_bot(token: str):
             inline=False
         )
         embed.add_field(
-            name="🔍 searchinsert <busqueda>",
+            name="🔍 massinsert <busqueda>",
             value="Inserta una tarea de búsqueda",
             inline=False
         )
