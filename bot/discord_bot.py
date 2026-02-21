@@ -135,13 +135,15 @@ class DiscordBot:
 
     async def _run_bot(self, token: str):
         try:
-            async with self.bot:
-                await self.bot.wait_until_ready()
-                await self.bot.tree.sync()
-                await self.bot.start(token)
-                await self.bot.close()
+            print("Discord bot: logging in...")
+            await self.bot.login(token)
+            print("Discord bot: connecting...")
+            await self.bot.connect()
+            print("Discord bot: connected and running")
         except Exception as e:
             print(f"Discord bot error: {e}")
+            import traceback
+            traceback.print_exc()
 
     def run(self, token: str):
         if not token:
