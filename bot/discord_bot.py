@@ -4,7 +4,6 @@ from typing import Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
-import threading
 import asyncio
 
 from common.ioc import get_video_service, get_task_service
@@ -129,7 +128,7 @@ class LueyoBot(commands.Bot):
                     ephemeral=True,
                 )
             except Exception as e:
-                await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+                await interaction.followup.send("Error: An error occurred while processing your request.", ephemeral=True)
 
 
 def run_bot(token: str):
@@ -148,7 +147,7 @@ def run_bot(token: str):
 
     @bot.command(name="randomyt")
     async def prefix_randomyt(ctx, start_day: Optional[str] = None, end_day: Optional[str] = None):
-        await ctx.invoke(prefix_random, start_day, end_day)
+        await prefix_random(ctx, start_day, end_day)
 
     @bot.command(name="publish")
     async def prefix_publish(ctx, url: str):
@@ -174,7 +173,7 @@ def run_bot(token: str):
             task_id = await add_search_task(search)
             await ctx.send(f"Task inserted successfully! Task ID: {task_id}")
         except Exception as e:
-            await ctx.send(f"Error: {str(e)}")
+            await ctx.send("Error: An error occurred while processing your request.")
 
     @bot.command(name="help")
     async def prefix_help(ctx):
@@ -226,6 +225,10 @@ class DiscordBot:
         if not token:
             print("Discord bot token not configured. Bot will not start.")
             return
-        print("Starting Discord bot in background thread...")
-        thread = threading.Thread(target=run_bot, args=(token,), daemon=True)
-        thread.start()
+        
+        async def run_async():
+            bot_instance = LueyoBot()
+            self.bot = bot_instance
+            await bot_instance.start(token)
+        
+        await run_async()
