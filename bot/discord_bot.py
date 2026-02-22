@@ -127,6 +127,20 @@ class LueyoBot(commands.Bot):
                 await interaction.followup.send("Error: An error occurred while processing your request.", ephemeral=True)
 
         @self.tree.command(
+            name="invite", description="Get the bot invite link"
+        )
+        async def invite_cmd(interaction: discord.Interaction):
+            await interaction.response.send_message(
+                "https://discord.com/oauth2/authorize?client_id=1474853531457683629&permissions=0&integration_type=0&scope=bot"
+            )
+
+        @self.tree.command(
+            name="support", description="Support the project on Ko-fi"
+        )
+        async def support_cmd(interaction: discord.Interaction):
+            await interaction.response.send_message("https://ko-fi.com/lueyo")
+
+        @self.tree.command(
             name="massinsert", description="Insert a new search task"
         )
         @app_commands.describe(search="Search term to insert as task")
@@ -186,9 +200,17 @@ def run_bot(token: str):
         async def prefix_massinsert(ctx, *, search: str):
             try:
                 result = await api_add_search_task(bot.http_session, search)
-                await ctx.send(f"Task inserted successfully! Task ID: {result['id']}")
+                await ctx.send(f"Task inserted successfully! Task ID: {result['search_term']}")
             except Exception as e:
                 await ctx.send("Error: An error occurred while processing your request.")
+
+        @bot.command(name="invite")
+        async def prefix_invite(ctx):
+            await ctx.send("https://discord.com/oauth2/authorize?client_id=1474853531457683629&permissions=0&integration_type=0&scope=bot")
+
+        @bot.command(name="support")
+        async def prefix_support(ctx):
+            await ctx.send("https://ko-fi.com/lueyo")
 
         @bot.command(name="help")
         async def prefix_help(ctx):
@@ -202,6 +224,8 @@ def run_bot(token: str):
             embed.add_field(name="📅 random <inicio> <fin>", value="Obtiene un video aleatorio en un intervalo de fechas", inline=False)
             embed.add_field(name="📤 publish <url>", value="Publica un video de YouTube en la base de datos", inline=False)
             embed.add_field(name="🔍 massinsert <busqueda>", value="Inserta una tarea de búsqueda", inline=False)
+            embed.add_field(name="🔗 invite", value="Obtiene el enlace de invitación del bot", inline=False)
+            embed.add_field(name="💝 support", value="Apoya el proyecto en Ko-fi", inline=False)
             embed.add_field(name="❓ help", value="Muestra este mensaje de ayuda", inline=False)
             await ctx.send(embed=embed)
 
