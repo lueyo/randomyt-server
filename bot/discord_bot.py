@@ -136,7 +136,7 @@ class LueyoBot(commands.Bot):
             try:
                 result = await api_add_search_task(self.http_session, search)
                 await interaction.followup.send(
-                    f"Task inserted successfully! Task ID: {result['id']}",
+                    f"Task inserted successfully! Task Name: {result['search_term']}",
                     ephemeral=True,
                 )
             except Exception as e:

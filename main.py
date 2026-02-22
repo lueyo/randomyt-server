@@ -493,12 +493,16 @@ async def add_task_search(
     task_id = await taskService.add_task(trimmed_term)
     if _task_event:
         _task_event.set()
-    return {"id": task_id, "search_term": trimmed_term}
+    return {"search_term": trimmed_term}
 
 
 @app.get("/favicon.ico")
 async def favicon():
     return FileResponse("static/favicon.png")
+
+@app.get("/bot")
+async def get_discord_bot():
+    return RedirectResponse(url="https://discord.com/oauth2/authorize?client_id=1474853531457683629&permissions=0&integration_type=0&scope=bot")
 
 
 @app.on_event("startup")
