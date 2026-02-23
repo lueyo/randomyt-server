@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from common.ioc import get_video_service, get_task_service
 from common.config import DISCORD_YT_RAMDOM
 from models.controller.input.array_of_ids import ArrayOfIDsRequest
@@ -34,7 +34,9 @@ _task_processor_task = None
 _task_event = None
 
 
-async def process_tasks_loop(taskService: ITaskService, task_event: asyncio.Event, videoService):
+async def process_tasks_loop(
+    taskService: ITaskService, task_event: asyncio.Event, videoService
+):
     from common.utils.search_and_insert import buscar_y_procesar
 
     print("Starting task processor...")
@@ -249,6 +251,46 @@ async def get_meta_info(
     video = await videoService.get_video_by_id(video_id)
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
+
+    return MetaInfoDTO(
+        author_name=video.title,
+        author_url=f"https://youtu.be/{video.id}",
+        provider_name=f"👁️ {video.views} 🗓️ {video.upload_date.strftime('%d/%m/%Y')}",
+        provider_url=f"https://youtu.be/{video.id}",
+    )
+
+
+@app.get("/meta-info", response_model=MetaInfoDTO)
+async def get_meta_info(
+    request: Request,
+    videoService: IVideoService = Depends(get_video_service),
+):
+    """
+    Retrieves meta information for embedding a video.
+
+    Obtains id from referer header (Referer: https://randomyt.lueyo.es/?id={id})
+
+    - **request**: Request object to access headers.
+    - **videoService**: Dependency-injected service for handling video operations.
+
+    Returns:
+    - A MetaInfoDTO object for video embedding, or empty object if not found.
+    """
+    # Get the Referer header
+    referer = request.headers.get("Referer", "")
+
+    # Extract the id from the referer URL (format: https://randomyt.lueyo.es/?id={id})
+    video_id = None
+    if "?id=" in referer:
+        video_id = referer.split("?id=")[-1].split("&")[0]
+
+    # If no video_id found, return empty object
+    if not video_id:
+        return {}
+
+    video = await videoService.get_video_by_id(video_id)
+    if not video:
+        return {}
 
     return MetaInfoDTO(
         author_name=video.title,
@@ -515,7 +557,9 @@ async def add_task_search(
 
     exists = await taskService.task_exists_by_name(trimmed_term)
     if exists:
-        raise HTTPException(status_code=409, detail="A task with this name already exists")
+        raise HTTPException(
+            status_code=409, detail="A task with this name already exists"
+        )
 
     task_id = await taskService.add_task(trimmed_term)
     if _task_event:
@@ -527,9 +571,12 @@ async def add_task_search(
 async def favicon():
     return FileResponse("static/favicon.png")
 
+
 @app.get("/bot")
 async def get_discord_bot():
-    return RedirectResponse(url="https://discord.com/oauth2/authorize?client_id=1474853531457683629&permissions=0&integration_type=0&scope=bot")
+    return RedirectResponse(
+        url="https://discord.com/oauth2/authorize?client_id=1474853531457683629&permissions=0&integration_type=0&scope=bot"
+    )
 
 
 @app.on_event("startup")
@@ -538,12 +585,14 @@ async def start_task_processor():
     _task_event = asyncio.Event()
     task_service = get_task_service()
     video_service = get_video_service()
-    
+
     initial_task = await task_service.get_next_pending_task()
     if initial_task:
         _task_event.set()
-    
-    _task_processor_task = asyncio.create_task(process_tasks_loop(task_service, _task_event, video_service))
+
+    _task_processor_task = asyncio.create_task(
+        process_tasks_loop(task_service, _task_event, video_service)
+    )
 
 
 @app.on_event("startup")
@@ -554,6 +603,7 @@ async def start_discord_bot():
     if token:
         try:
             from bot.discord_bot import DiscordBot
+
             bot = DiscordBot()
             _discord_bot_task = asyncio.create_task(bot.start(token))
         except Exception as e:
