@@ -7,6 +7,7 @@ from models.controller.output.video_controller import VideoSchema
 from models.domain.video_model import VideoModel
 from models.controller.input.publish_video_request import PublishVideoRequest
 from models.controller.output.page_model import PageModel
+from models.controller.output.meta_model import MetaInfoDTO
 from service.VideoService import VideoService, IVideoService
 from service.TaskService import ITaskService
 from typing import List, Optional
@@ -229,6 +230,32 @@ async def get_video(
     if not video:
         raise HTTPException(status_code=404, detail="Video not found")
     return VideoSchema(**video.dict())
+
+
+@app.get("/meta-info/{video_id}", response_model=MetaInfoDTO)
+async def get_meta_info(
+    video_id: str, videoService: IVideoService = Depends(get_video_service)
+):
+    """
+    Retrieves meta information for embedding a video.
+
+    - **video_id**: Unique string identifier of the video (path parameter).
+    - **videoService**: Dependency-injected service for handling video operations.
+
+    Returns:
+    - A MetaInfoDTO object for video embedding.
+    """
+
+    video = await videoService.get_video_by_id(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    return MetaInfoDTO(
+        author_name=video.title,
+        author_url=f"https://youtu.be/{video.id}",
+        provider_name=f"👁️ {video.views} 🗓️ {video.upload_date.strftime('%d/%m/%Y')}",
+        provider_url=f"https://youtu.be/{video.id}",
+    )
 
 
 @app.get("/count")
