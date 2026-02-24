@@ -1,6 +1,6 @@
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from common.ioc import get_video_service, get_task_service
-from common.config import DISCORD_YT_RAMDOM
+from common.config import DISCORD_YT_RAMDOM, MATRIX_YT_RANDOM_TOKEN, MATRIX_HOMESERVER, MATRIX_USER_ID
 from models.controller.input.array_of_ids import ArrayOfIDsRequest
 from models.controller.input.task_search_request import TaskSearchRequest
 from models.controller.output.video_controller import VideoSchema
@@ -610,3 +610,21 @@ async def start_discord_bot():
             print(f"Failed to start Discord bot: {e}")
     else:
         print("Discord bot token not configured. Bot will not start.")
+
+
+@app.on_event("startup")
+async def start_matrix_bot():
+    token = MATRIX_YT_RANDOM_TOKEN
+    homeserver = MATRIX_HOMESERVER
+    user_id = MATRIX_USER_ID
+    print(f"Matrix token configured: {bool(token)}")
+    if token:
+        try:
+            from bot.matrix_bot import MatrixBot
+
+            bot = MatrixBot()
+            asyncio.create_task(bot.start(token, homeserver, user_id))
+        except Exception as e:
+            print(f"Failed to start Matrix bot: {e}")
+    else:
+        print("Matrix bot token not configured. Bot will not start.")
