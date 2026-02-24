@@ -9,6 +9,7 @@ API_BASE_URL = "https://randomyt-server.vps.lueyo.es"
 COMMAND_PREFIX = "ryt "
 
 global_client = None
+sync_token = None
 
 
 def extract_video_id(url: str) -> Optional[str]:
@@ -133,6 +134,9 @@ Usa los siguientes comandos con el prefijo `ryt `
 
 
 async def message_callback(room: MatrixRoom, event: RoomMessageText):
+    if sync_token is None:
+        return
+    
     if not event.body.startswith(COMMAND_PREFIX):
         return
     
@@ -156,7 +160,7 @@ def set_global_client(client):
 
 
 async def matrix_bot_main(homeserver: str, user_id: str, access_token: str):
-    global global_client
+    global global_client, sync_token
     
     client = AsyncClient(homeserver, user_id)
     client.http_session = aiohttp.ClientSession()
@@ -170,6 +174,7 @@ async def matrix_bot_main(homeserver: str, user_id: str, access_token: str):
     
     print(f"Connecting to Matrix as {user_id}...")
     await client.sync()
+    sync_token = "initialized"
     
     print("Matrix bot ready!")
     
