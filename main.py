@@ -335,6 +335,10 @@ async def search_by_day(
         regex="^(asc|desc)$",
         description="Sort order: 'asc' for oldest first, 'desc' for newest first",
     ),
+    isPostedDate: bool = Query(
+        default=False,
+        description="If true, search by posted_date instead of upload_date",
+    ),
     videoService: IVideoService = Depends(get_video_service),
 ):
     """
@@ -347,13 +351,14 @@ async def search_by_day(
     - **page**: Page number, starts at 1 (default: 1)
     - **pageSize**: Number of items per page, max 100 (default: 30)
     - **sort**: Sort order, 'asc' for oldest first, 'desc' for newest first (default: asc)
+    - **isPostedDate**: If true, search by posted_date instead of upload_date (default: false)
     - **videoService**: Dependency-injected service for handling video operations.
 
     Returns:
     - A PageModel object containing paginated results.
     """
     try:
-        result = await videoService.search_by_day(day, page, pageSize, sort)
+        result = await videoService.search_by_day(day, page, pageSize, sort, isPostedDate)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -380,6 +385,10 @@ async def search_by_interval(
         regex="^(asc|desc)$",
         description="Sort order: 'asc' for oldest first, 'desc' for newest first",
     ),
+    isPostedDate: bool = Query(
+        default=False,
+        description="If true, search by posted_date instead of upload_date",
+    ),
     videoService: IVideoService = Depends(get_video_service),
 ):
     """
@@ -393,6 +402,7 @@ async def search_by_interval(
     - **page**: Page number, starts at 1 (default: 1)
     - **pageSize**: Number of items per page, max 100 (default: 30)
     - **sort**: Sort order, 'asc' for oldest first, 'desc' for newest first (default: asc)
+    - **isPostedDate**: If true, search by posted_date instead of upload_date (default: false)
     - **videoService**: Dependency-injected service for handling video operations.
 
     Returns:
@@ -403,7 +413,7 @@ async def search_by_interval(
 
     try:
         result = await videoService.search_by_interval(
-            startDay, endDay, page, pageSize, sort
+            startDay, endDay, page, pageSize, sort, isPostedDate
         )
         return result
     except ValueError as e:
@@ -434,6 +444,10 @@ async def search_by_title(
         regex="^(asc|desc)$",
         description="Sort order: 'asc' for oldest first, 'desc' for newest first",
     ),
+    isPostedDate: bool = Query(
+        default=False,
+        description="If true, sort by posted_date instead of upload_date",
+    ),
     videoService: IVideoService = Depends(get_video_service),
 ):
     """
@@ -447,13 +461,14 @@ async def search_by_title(
     - **page**: Page number, starts at 1 (default: 1)
     - **pageSize**: Number of items per page, max 100 (default: 30)
     - **sort**: Sort order, 'asc' for oldest first, 'desc' for newest first (default: asc)
+    - **isPostedDate**: If true, sort by posted_date instead of upload_date (default: false)
     - **videoService**: Dependency-injected service for handling video operations.
 
     Returns:
     - A PageModel object containing paginated results.
     """
     try:
-        result = await videoService.search_by_title(q, tags, page, pageSize, sort)
+        result = await videoService.search_by_title(q, tags, page, pageSize, sort, isPostedDate)
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -498,6 +513,10 @@ async def search_combined(
         regex="^(asc|desc)$",
         description="Sort order: 'asc' for oldest first, 'desc' for newest first",
     ),
+    isPostedDate: bool = Query(
+        default=False,
+        description="If true, search/sort by posted_date instead of upload_date",
+    ),
     videoService: IVideoService = Depends(get_video_service),
 ):
     """
@@ -518,6 +537,7 @@ async def search_combined(
     - **page**: Page number, starts at 1 (default: 1)
     - **pageSize**: Number of items per page, max 100 (default: 30)
     - **sort**: Sort order, 'asc' for oldest first, 'desc' for newest first (default: asc)
+    - **isPostedDate**: If true, search/sort by posted_date instead of upload_date (default: false)
     - **videoService**: Dependency-injected service for handling video operations.
 
     Returns:
@@ -525,7 +545,7 @@ async def search_combined(
     """
     try:
         result = await videoService.search_combined(
-            q, tags, day, startDay, endDay, page, pageSize, sort
+            q, tags, day, startDay, endDay, page, pageSize, sort, isPostedDate
         )
         return result
     except ValueError as e:

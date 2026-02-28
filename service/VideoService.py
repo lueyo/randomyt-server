@@ -34,13 +34,13 @@ class IVideoService(ABC):
 
     @abstractmethod
     async def search_by_day(
-        self, day: str, page: int, pageSize: int, sort: str = "asc"
+        self, day: str, page: int, pageSize: int, sort: str = "asc", isPostedDate: bool = False
     ) -> PageModel:
         pass
 
     @abstractmethod
     async def search_by_interval(
-        self, start_day: str, end_day: str, page: int, pageSize: int, sort: str = "asc"
+        self, start_day: str, end_day: str, page: int, pageSize: int, sort: str = "asc", isPostedDate: bool = False
     ) -> PageModel:
         pass
 
@@ -52,6 +52,7 @@ class IVideoService(ABC):
         page: int,
         pageSize: int,
         sort: str = "asc",
+        isPostedDate: bool = False,
     ) -> PageModel:
         pass
 
@@ -66,6 +67,7 @@ class IVideoService(ABC):
         page: int,
         pageSize: int,
         sort: str = "asc",
+        isPostedDate: bool = False,
     ) -> PageModel:
         pass
 
@@ -143,7 +145,7 @@ class VideoService(IVideoService):
         return await self.video_repository.count_videos()
 
     async def search_by_day(
-        self, day: str, page: int = 1, pageSize: int = 30, sort: str = "asc"
+        self, day: str, page: int = 1, pageSize: int = 30, sort: str = "asc", isPostedDate: bool = False
     ) -> PageModel:
         """
         Busca videos subidos en un día específico.
@@ -153,6 +155,7 @@ class VideoService(IVideoService):
             page: Número de página (comienza en 1)
             pageSize: Número de elementos por página (default 30, max 100)
             sort: Orden de clasificación ("asc" para más antiguo primero, "desc" para más reciente primero)
+            isPostedDate: Si True, busca por posted_date en vez de upload_date
 
         Returns:
             PageModel con los resultados paginados
@@ -178,7 +181,7 @@ class VideoService(IVideoService):
 
         # Buscar videos
         videos, total = await self.video_repository.search_by_day(
-            day_date, skip, pageSize, sort
+            day_date, skip, pageSize, sort, isPostedDate
         )
 
         # Calcular páginas
@@ -207,6 +210,7 @@ class VideoService(IVideoService):
         page: int = 1,
         pageSize: int = 30,
         sort: str = "asc",
+        isPostedDate: bool = False,
     ) -> PageModel:
         """
         Busca videos subidos en un rango de fechas.
@@ -217,6 +221,7 @@ class VideoService(IVideoService):
             page: Número de página (comienza en 1)
             pageSize: Número de elementos por página (default 30, max 100)
             sort: Orden de clasificación ("asc" para más antiguo primero, "desc" para más reciente primero)
+            isPostedDate: Si True, busca por posted_date en vez de upload_date
 
         Returns:
             PageModel con los resultados paginados
@@ -251,7 +256,7 @@ class VideoService(IVideoService):
 
         # Buscar videos
         videos, total = await self.video_repository.search_by_interval(
-            start_date, end_date, skip, pageSize, sort
+            start_date, end_date, skip, pageSize, sort, isPostedDate
         )
 
         # Calcular páginas
@@ -280,6 +285,7 @@ class VideoService(IVideoService):
         page: int = 1,
         pageSize: int = 30,
         sort: str = "asc",
+        isPostedDate: bool = False,
     ) -> PageModel:
         """
         Busca videos por título y opcionalmente por tags.
@@ -290,6 +296,7 @@ class VideoService(IVideoService):
             page: Número de página (comienza en 1)
             pageSize: Número de elementos por página (default 30, max 100)
             sort: Orden de clasificación ("asc" para más antiguo primero, "desc" para más reciente primero)
+            isPostedDate: Si True, ordena por posted_date en vez de upload_date
 
         Returns:
             PageModel con los resultados paginados
@@ -308,7 +315,7 @@ class VideoService(IVideoService):
         skip = (page - 1) * pageSize
 
         videos, total = await self.video_repository.search_by_title(
-            query, tags, skip, pageSize, sort
+            query, tags, skip, pageSize, sort, isPostedDate
         )
 
         total_pages = (total + pageSize - 1) // pageSize if total > 0 else 0
@@ -337,6 +344,7 @@ class VideoService(IVideoService):
         page: int = 1,
         pageSize: int = 30,
         sort: str = "asc",
+        isPostedDate: bool = False,
     ) -> PageModel:
         """
         Busca videos combinando filtros de título, tags y fechas.
@@ -350,6 +358,7 @@ class VideoService(IVideoService):
             page: Número de página (comienza en 1)
             pageSize: Número de elementos por página (default 30, max 100)
             sort: Orden de clasificación ("asc" para más antiguo primero, "desc" para más reciente primero)
+            isPostedDate: Si True, busca/ordena por posted_date en vez de upload_date
 
         Returns:
             PageModel con los resultados paginados
@@ -406,7 +415,7 @@ class VideoService(IVideoService):
         skip = (page - 1) * pageSize
 
         videos, total = await self.video_repository.search_combined(
-            query, tags, day_date, start_date, end_date, skip, pageSize, sort
+            query, tags, day_date, start_date, end_date, skip, pageSize, sort, isPostedDate
         )
 
         total_pages = (total + pageSize - 1) // pageSize if total > 0 else 0
