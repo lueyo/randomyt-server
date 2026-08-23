@@ -5,6 +5,28 @@ from db.client import db_client
 from bson import ObjectId
 from abc import ABC, abstractmethod
 from datetime import datetime
+import json
+from cachetools import TTLCache
+
+_count_cache = TTLCache(maxsize=1024, ttl=45)
+
+
+async def _count_with_cache(
+    filter_query: dict, collation: Optional[dict] = None
+) -> int:
+    key = json.dumps(
+        {"f": filter_query, "c": collation}, default=str, sort_keys=True
+    )
+    total = _count_cache.get(key)
+    if total is None:
+        if collation is not None:
+            total = await db_client.videos.count_documents(
+                filter_query, collation=collation
+            )
+        else:
+            total = await db_client.videos.count_documents(filter_query)
+        _count_cache[key] = total
+    return total
 
 
 class IVideoRepository(ABC):
@@ -177,7 +199,7 @@ class VideoRepository(IVideoRepository):
         sort_order = 1 if sort == "asc" else -1
 
         # Contar total de documentos que coinciden
-        total = await db_client.videos.count_documents(
+        total = await _count_with_cache(
             {date_field: {"$gte": start_of_day, "$lte": end_of_day}}
         )
 
@@ -241,7 +263,7 @@ class VideoRepository(IVideoRepository):
         sort_order = 1 if sort == "asc" else -1
 
         # Contar total de documentos que coinciden
-        total = await db_client.videos.count_documents(
+        total = await _count_with_cache(
             {date_field: {"$gte": start_of_start, "$lte": end_of_end}}
         )
 
@@ -411,9 +433,7 @@ class VideoRepository(IVideoRepository):
         # Collation configuration for accent-insensitive and case-insensitive search
         collation = {"locale": "es", "strength": 1}
 
-        total = await db_client.videos.count_documents(
-            filter_query, collation=collation
-        )
+        total = await _count_with_cache(filter_query, collation)
 
         cursor = (
             db_client.videos.find(filter_query, collation=collation)
@@ -498,9 +518,7 @@ class VideoRepository(IVideoRepository):
         # Collation configuration for accent-insensitive and case-insensitive search
         collation = {"locale": "es", "strength": 1}
 
-        total = await db_client.videos.count_documents(
-            filter_query, collation=collation
-        )
+        total = await _count_with_cache(filter_query, collation)
 
         cursor = (
             db_client.videos.find(filter_query, collation=collation)

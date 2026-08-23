@@ -600,6 +600,17 @@ async def get_discord_bot():
 
 
 @app.on_event("startup")
+async def ensure_db_indexes():
+    try:
+        from db.indexes import ensure_indexes
+
+        await ensure_indexes()
+        print("Database indexes ensured")
+    except Exception as e:
+        print(f"Failed to create database indexes: {e}")
+
+
+@app.on_event("startup")
 async def start_task_processor():
     global _task_processor_task, _task_event
     _task_event = asyncio.Event()
