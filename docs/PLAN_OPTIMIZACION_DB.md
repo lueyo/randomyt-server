@@ -109,7 +109,19 @@ Efecto: la segunda petición de la misma búsqueda dentro de 45 s no ejecuta nin
 saltarse el scan completo es el mayor alivio de CPU en Atlas/servidor cuando hay tráfico
 repetido sobre las mismas búsquedas (patrón típico: paginar resultados).
 
-### 3. Un solo cliente de Motor
+### 3. Caché de `GET /find/{video_id}` y `GET /count`
+
+**Archivo:** `repository/VideoRepository.py`
+
+- `get_video_by_id`: caché `_video_cache = TTLCache(maxsize=4096, ttl=3600)` indexada por
+  ID de video. Seguro porque la colección `videos` es *insert-only* (no hay `update_one`
+  sobre ella), así que un video nunca cambia una vez insertado. Los IDs inexistentes **no**
+  se cachean: si el video se inserta más tarde, la siguiente petición ya lo encuentra.
+- `count_videos`: caché `_total_count_cache = TTLCache(maxsize=8, ttl=10)` con clave única
+  `"all"`. TTL corto (10 s) a propósito porque el total puede crecer con cada video nuevo
+  insertado por el procesador de tareas.
+
+### 4. Un solo cliente de Motor
 
 **Archivo:** `db/client.py`
 
@@ -124,7 +136,7 @@ db_tasks = _client.get_database("randomyt_cola")
 
 Un único pool de conexiones compartido por ambas bases. Sin cambio de comportamiento.
 
-### 4. Lo que NO se cambia
+### 5. Lo que NO se cambia
 
 - Semántica del regex ni collation → mismos resultados.
 - Paginación offset (`skip`/`limit`) → mismo contrato de API.

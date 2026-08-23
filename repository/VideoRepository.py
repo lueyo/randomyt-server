@@ -9,6 +9,8 @@ import json
 from cachetools import TTLCache
 
 _count_cache = TTLCache(maxsize=1024, ttl=45)
+_total_count_cache = TTLCache(maxsize=8, ttl=10)
+_video_cache = TTLCache(maxsize=4096, ttl=3600)
 
 
 async def _count_with_cache(
@@ -159,18 +161,28 @@ class VideoRepository(IVideoRepository):
             return None
 
     async def get_video_by_id(self, video_id: str) -> VideoModel:
+        cached = _video_cache.get(video_id)
+        if cached is not None:
+            return cached
+
         video_data = await db_client.videos.find_one({"_id": video_id})
         if video_data:
             video_db = VideoDB(**video_data)
             video_db_data = video_db.dict()
             if "_id" in video_db_data:
                 video_db_data["id"] = video_db_data.pop("_id")
-            return VideoModel(**video_db_data)
+            video = VideoModel(**video_db_data)
+            _video_cache[video_id] = video
+            return video
         else:
             return None
 
     async def count_videos(self) -> int:
-        return await db_client.videos.count_documents({})
+        total = _total_count_cache.get("all")
+        if total is None:
+            total = await db_client.videos.count_documents({})
+            _total_count_cache["all"] = total
+        return total
 
     async def search_by_day(
         self, day: datetime, skip: int, limit: int, sort: str = "asc", isPostedDate: bool = False
