@@ -2,15 +2,23 @@ from typing import List, Optional, Tuple
 from models.db.video_db_schema import VideoDB
 from models.domain.video_model import VideoModel
 from db.client import db_client
-from bson import ObjectId
 from abc import ABC, abstractmethod
 from datetime import datetime
 import json
+import random as _random
 from cachetools import TTLCache
 
 _count_cache = TTLCache(maxsize=1024, ttl=45)
 _total_count_cache = TTLCache(maxsize=8, ttl=10)
 _video_cache = TTLCache(maxsize=4096, ttl=3600)
+
+
+def _to_video_model(data: dict) -> VideoModel:
+    video_db = VideoDB(**data)
+    video_db_data = video_db.dict()
+    if "_id" in video_db_data:
+        video_db_data["id"] = video_db_data.pop("_id")
+    return VideoModel(**video_db_data)
 
 
 async def _count_with_cache(
@@ -122,6 +130,29 @@ class IVideoRepository(ABC):
 
 class VideoRepository(IVideoRepository):
 
+    async def _find_random(
+        self,
+        filter_query: Optional[dict] = None,
+        date_field: Optional[str] = None,
+    ) -> Optional[VideoModel]:
+        if filter_query is None:
+            filter_query = {}
+
+        total = await db_client.videos.count_documents(filter_query)
+        if total == 0:
+            return None
+
+        offset = _random.randint(0, total - 1)
+        cursor = db_client.videos.find(filter_query)
+        if date_field:
+            cursor = cursor.sort(date_field, 1)
+        cursor = cursor.skip(offset).limit(1)
+
+        results = await cursor.to_list(1)
+        if results:
+            return _to_video_model(results[0])
+        return None
+
     async def save_video(self, video_model: VideoModel) -> str:
         video_dict = video_model.dict()
         if "id" in video_dict:
@@ -132,33 +163,12 @@ class VideoRepository(IVideoRepository):
         return str(result.inserted_id)
 
     async def get_random_video(self) -> VideoModel:
-        pipeline = [{"$sample": {"size": 1}}]
-        result = await db_client.videos.aggregate(pipeline).to_list(length=1)
-        if result:
-            video_data = result[0]
-            video_db = VideoDB(**video_data)
-            video_db_data = video_db.dict()
-            if "_id" in video_db_data:
-                video_db_data["id"] = video_db_data.pop("_id")
-            return VideoModel(**video_db_data)
-        else:
-            return None
+        return await self._find_random()
 
     async def get_random_video_exclude_ids(self, exclude_ids: List[str]) -> VideoModel:
-        pipeline = [
-            {"$match": {"_id": {"$nin": exclude_ids}}},
-            {"$sample": {"size": 1}},
-        ]
-        result = await db_client.videos.aggregate(pipeline).to_list(length=1)
-        if result:
-            video_data = result[0]
-            video_db = VideoDB(**video_data)
-            video_db_data = video_db.dict()
-            if "_id" in video_db_data:
-                video_db_data["id"] = video_db_data.pop("_id")
-            return VideoModel(**video_db_data)
-        else:
-            return None
+        if not exclude_ids:
+            return await self._find_random()
+        return await self._find_random({"_id": {"$nin": exclude_ids}})
 
     async def get_video_by_id(self, video_id: str) -> VideoModel:
         cached = _video_cache.get(video_id)
@@ -226,16 +236,7 @@ class VideoRepository(IVideoRepository):
         )
 
         results = await cursor.to_list(length=limit)
-
-        videos = []
-        for video_data in results:
-            video_db = VideoDB(**video_data)
-            video_db_data = video_db.dict()
-            if "_id" in video_db_data:
-                video_db_data["id"] = video_db_data.pop("_id")
-            videos.append(VideoModel(**video_db_data))
-
-        return videos, total
+        return [_to_video_model(d) for d in results], total
 
     async def search_by_interval(
         self,
@@ -290,124 +291,41 @@ class VideoRepository(IVideoRepository):
         )
 
         results = await cursor.to_list(length=limit)
-
-        videos = []
-        for video_data in results:
-            video_db = VideoDB(**video_data)
-            video_db_data = video_db.dict()
-            if "_id" in video_db_data:
-                video_db_data["id"] = video_db_data.pop("_id")
-            videos.append(VideoModel(**video_db_data))
-
-        return videos, total
+        return [_to_video_model(d) for d in results], total
 
     async def get_random_video_by_day(self, day: datetime) -> Optional[VideoModel]:
-        """
-        Obtiene un video aleatorio de un día específico.
-
-        Args:
-            day: Fecha del día a buscar (datetime con hora 00:00:00)
-
-        Returns:
-            VideoModel aleatorio o None si no hay videos
-        """
-        # Calcular el rango del día (desde las 00:00:00 hasta las 23:59:59.999)
         start_of_day = datetime(day.year, day.month, day.day, 0, 0, 0)
         end_of_day = datetime(day.year, day.month, day.day, 23, 59, 59, 999999)
-
-        # Usar $sample para obtener un video aleatorio del día
-        pipeline = [
-            {"$match": {"upload_date": {"$gte": start_of_day, "$lte": end_of_day}}},
-            {"$sample": {"size": 1}},
-        ]
-        result = await db_client.videos.aggregate(pipeline).to_list(length=1)
-
-        if result:
-            video_data = result[0]
-            video_db = VideoDB(**video_data)
-            video_db_data = video_db.dict()
-            if "_id" in video_db_data:
-                video_db_data["id"] = video_db_data.pop("_id")
-            return VideoModel(**video_db_data)
-        else:
-            return None
+        return await self._find_random(
+            {"upload_date": {"$gte": start_of_day, "$lte": end_of_day}},
+            date_field="upload_date",
+        )
 
     async def get_random_video_by_interval(
         self, start_day: datetime, end_day: datetime
     ) -> Optional[VideoModel]:
-        """
-        Obtiene un video aleatorio de un rango de fechas.
-
-        Args:
-            start_day: Fecha de inicio del rango
-            end_day: Fecha de fin del rango
-
-        Returns:
-            VideoModel aleatorio o None si no hay videos
-        """
-        # Normalizar las fechas para incluir todo el día
         start_of_start = datetime(
             start_day.year, start_day.month, start_day.day, 0, 0, 0
         )
         end_of_end = datetime(
             end_day.year, end_day.month, end_day.day, 23, 59, 59, 999999
         )
-
-        # Usar $sample para obtener un video aleatorio del rango
-        pipeline = [
-            {"$match": {"upload_date": {"$gte": start_of_start, "$lte": end_of_end}}},
-            {"$sample": {"size": 1}},
-        ]
-        result = await db_client.videos.aggregate(pipeline).to_list(length=1)
-
-        if result:
-            video_data = result[0]
-            video_db = VideoDB(**video_data)
-            video_db_data = video_db.dict()
-            if "_id" in video_db_data:
-                video_db_data["id"] = video_db_data.pop("_id")
-            return VideoModel(**video_db_data)
-        else:
-            return None
+        return await self._find_random(
+            {"upload_date": {"$gte": start_of_start, "$lte": end_of_end}},
+            date_field="upload_date",
+        )
 
     async def get_random_video_by_day_exclude_ids(
         self, day: datetime, exclude_ids: List[str]
     ) -> Optional[VideoModel]:
-        """
-        Obtiene un video aleatorio de un día específico excluyendo IDs.
-
-        Args:
-            day: Fecha del día a buscar (datetime con hora 00:00:00)
-            exclude_ids: Lista de IDs a excluir
-
-        Returns:
-            VideoModel aleatorio o None si no hay videos
-        """
-        # Calcular el rango del día (desde las 00:00:00 hasta las 23:59:59.999)
         start_of_day = datetime(day.year, day.month, day.day, 0, 0, 0)
         end_of_day = datetime(day.year, day.month, day.day, 23, 59, 59, 999999)
-
-        # Usar $sample para obtener un video aleatorio del día excluyendo IDs
-        pipeline = [
-            {
-                "$match": {
-                    "upload_date": {"$gte": start_of_day, "$lte": end_of_day},
-                    "_id": {"$nin": exclude_ids},
-                }
-            },
-            {"$sample": {"size": 1}},
-        ]
-        result = await db_client.videos.aggregate(pipeline).to_list(length=1)
-
-        if result:
-            video_data = result[0]
-            video_db = VideoDB(**video_data)
-            video_db_data = video_db.dict()
-            if "_id" in video_db_data:
-                video_db_data["id"] = video_db_data.pop("_id")
-            return VideoModel(**video_db_data)
-        else:
-            return None
+        filter_query: dict = {
+            "upload_date": {"$gte": start_of_day, "$lte": end_of_day},
+        }
+        if exclude_ids:
+            filter_query["_id"] = {"$nin": exclude_ids}
+        return await self._find_random(filter_query, date_field="upload_date")
 
     async def search_by_title(
         self,
@@ -455,16 +373,7 @@ class VideoRepository(IVideoRepository):
         )
 
         results = await cursor.to_list(length=limit)
-
-        videos = []
-        for video_data in results:
-            video_db = VideoDB(**video_data)
-            video_db_data = video_db.dict()
-            if "_id" in video_db_data:
-                video_db_data["id"] = video_db_data.pop("_id")
-            videos.append(VideoModel(**video_db_data))
-
-        return videos, total
+        return [_to_video_model(d) for d in results], total
 
     async def search_combined(
         self,
@@ -540,57 +449,20 @@ class VideoRepository(IVideoRepository):
         )
 
         results = await cursor.to_list(length=limit)
-
-        videos = []
-        for video_data in results:
-            video_db = VideoDB(**video_data)
-            video_db_data = video_db.dict()
-            if "_id" in video_db_data:
-                video_db_data["id"] = video_db_data.pop("_id")
-            videos.append(VideoModel(**video_db_data))
-
-        return videos, total
+        return [_to_video_model(d) for d in results], total
 
     async def get_random_video_by_interval_exclude_ids(
         self, start_day: datetime, end_day: datetime, exclude_ids: List[str]
     ) -> Optional[VideoModel]:
-        """
-        Obtiene un video aleatorio de un rango de fechas excluyendo IDs.
-
-        Args:
-            start_day: Fecha de inicio del rango
-            end_day: Fecha de fin del rango
-            exclude_ids: Lista de IDs a excluir
-
-        Returns:
-            VideoModel aleatorio o None si no hay videos
-        """
-        # Normalizar las fechas para incluir todo el día
         start_of_start = datetime(
             start_day.year, start_day.month, start_day.day, 0, 0, 0
         )
         end_of_end = datetime(
             end_day.year, end_day.month, end_day.day, 23, 59, 59, 999999
         )
-
-        # Usar $sample para obtener un video aleatorio del rango excluyendo IDs
-        pipeline = [
-            {
-                "$match": {
-                    "upload_date": {"$gte": start_of_start, "$lte": end_of_end},
-                    "_id": {"$nin": exclude_ids},
-                }
-            },
-            {"$sample": {"size": 1}},
-        ]
-        result = await db_client.videos.aggregate(pipeline).to_list(length=1)
-
-        if result:
-            video_data = result[0]
-            video_db = VideoDB(**video_data)
-            video_db_data = video_db.dict()
-            if "_id" in video_db_data:
-                video_db_data["id"] = video_db_data.pop("_id")
-            return VideoModel(**video_db_data)
-        else:
-            return None
+        filter_query: dict = {
+            "upload_date": {"$gte": start_of_start, "$lte": end_of_end},
+        }
+        if exclude_ids:
+            filter_query["_id"] = {"$nin": exclude_ids}
+        return await self._find_random(filter_query, date_field="upload_date")
