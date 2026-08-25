@@ -4,11 +4,12 @@ from models.domain.video_model import VideoModel
 from db.client import db_client
 from abc import ABC, abstractmethod
 from datetime import datetime
+import hashlib
 import json
 import random as _random
 from cachetools import TTLCache
 
-_count_cache = TTLCache(maxsize=1024, ttl=45)
+_count_cache = TTLCache(maxsize=2048, ttl=60)
 _total_count_cache = TTLCache(maxsize=8, ttl=10)
 _video_cache = TTLCache(maxsize=4096, ttl=3600)
 
@@ -21,20 +22,16 @@ def _to_video_model(data: dict) -> VideoModel:
     return VideoModel(**video_db_data)
 
 
-async def _count_with_cache(
-    filter_query: dict, collation: Optional[dict] = None
-) -> int:
-    key = json.dumps(
-        {"f": filter_query, "c": collation}, default=str, sort_keys=True
-    )
+def _count_cache_key(filter_query: dict) -> str:
+    raw = json.dumps(filter_query, default=str, sort_keys=True)
+    return hashlib.md5(raw.encode()).hexdigest()
+
+
+async def _count_with_cache(filter_query: dict) -> int:
+    key = _count_cache_key(filter_query)
     total = _count_cache.get(key)
     if total is None:
-        if collation is not None:
-            total = await db_client.videos.count_documents(
-                filter_query, collation=collation
-            )
-        else:
-            total = await db_client.videos.count_documents(filter_query)
+        total = await db_client.videos.count_documents(filter_query)
         _count_cache[key] = total
     return total
 
@@ -358,7 +355,7 @@ class VideoRepository(IVideoRepository):
         # Collation configuration for accent-insensitive and case-insensitive search
         collation = {"locale": "es", "strength": 1}
 
-        total = await _count_with_cache(filter_query, collation)
+        total = await _count_with_cache(filter_query)
 
         cursor = (
             db_client.videos.find(filter_query, collation=collation)
@@ -434,7 +431,7 @@ class VideoRepository(IVideoRepository):
         # Collation configuration for accent-insensitive and case-insensitive search
         collation = {"locale": "es", "strength": 1}
 
-        total = await _count_with_cache(filter_query, collation)
+        total = await _count_with_cache(filter_query)
 
         cursor = (
             db_client.videos.find(filter_query, collation=collation)
