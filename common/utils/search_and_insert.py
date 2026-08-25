@@ -44,30 +44,19 @@ def estrategia_ytdlp(busqueda, cantidad):
 
 
 def estrategia_libreria_python(busqueda, cantidad):
-    print(f"🔸 [Nivel 2] Buscando con youtube-search-python: '{busqueda}'")
+    print(f"🔸 [Nivel 2] Buscando con youtube-search: '{busqueda}'")
     try:
-        from youtubesearchpython import VideosSearch
+        from youtube_search import YoutubeSearch
     except ImportError:
-        print("⚠️ Librería youtubesearchpython no instalada.")
+        print("⚠️ Librería youtube-search no instalada.")
         return []
 
-    search = VideosSearch(busqueda, limit=cantidad)
+    results = YoutubeSearch(busqueda, max_results=cantidad).to_dict()
     links = []
-    intentos = 0
-    while len(links) < cantidad and intentos < 10:
-        results = search.result().get("result", [])
-        if not results:
-            break
-        for video in results:
-            links.append(video["link"])
-            
-        if len(links) < cantidad:
-            try:
-                search.next()
-                intentos += 1
-                time.sleep(0.20)
-            except:
-                break
+    for video in results.get("videos", []):
+        video_id = video.get("id")
+        if video_id:
+            links.append(f"https://www.youtube.com/watch?v={video_id}")
     return links
 
 
