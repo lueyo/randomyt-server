@@ -133,24 +133,19 @@ class VideoRepository(IVideoRepository):
     async def _find_random(
         self,
         filter_query: Optional[dict] = None,
-        date_field: Optional[str] = None,
     ) -> Optional[VideoModel]:
-        if filter_query is None:
-            filter_query = {}
+        r = _random.random()
+        base = filter_query or {}
 
-        total = await db_client.videos.count_documents(filter_query)
-        if total == 0:
-            return None
+        query = {**base, "_r": {"$gte": r}}
+        result = await db_client.videos.find_one(query)
 
-        offset = _random.randint(0, total - 1)
-        cursor = db_client.videos.find(filter_query)
-        if date_field:
-            cursor = cursor.sort(date_field, 1)
-        cursor = cursor.skip(offset).limit(1)
+        if result is None:
+            query = {**base, "_r": {"$lt": r}}
+            result = await db_client.videos.find_one(query)
 
-        results = await cursor.to_list(1)
-        if results:
-            return _to_video_model(results[0])
+        if result:
+            return _to_video_model(result)
         return None
 
     async def save_video(self, video_model: VideoModel) -> str:
@@ -159,7 +154,9 @@ class VideoRepository(IVideoRepository):
             video_dict["_id"] = video_dict.pop("id")
 
         video_db = VideoDB(**video_dict)
-        result = await db_client.videos.insert_one(video_db.dict(by_alias=True))
+        doc = video_db.dict(by_alias=True)
+        doc["_r"] = _random.random()
+        result = await db_client.videos.insert_one(doc)
         return str(result.inserted_id)
 
     async def get_random_video(self) -> VideoModel:
@@ -298,7 +295,6 @@ class VideoRepository(IVideoRepository):
         end_of_day = datetime(day.year, day.month, day.day, 23, 59, 59, 999999)
         return await self._find_random(
             {"upload_date": {"$gte": start_of_day, "$lte": end_of_day}},
-            date_field="upload_date",
         )
 
     async def get_random_video_by_interval(
@@ -312,7 +308,6 @@ class VideoRepository(IVideoRepository):
         )
         return await self._find_random(
             {"upload_date": {"$gte": start_of_start, "$lte": end_of_end}},
-            date_field="upload_date",
         )
 
     async def get_random_video_by_day_exclude_ids(
@@ -325,7 +320,7 @@ class VideoRepository(IVideoRepository):
         }
         if exclude_ids:
             filter_query["_id"] = {"$nin": exclude_ids}
-        return await self._find_random(filter_query, date_field="upload_date")
+        return await self._find_random(filter_query)
 
     async def search_by_title(
         self,
@@ -465,4 +460,4 @@ class VideoRepository(IVideoRepository):
         }
         if exclude_ids:
             filter_query["_id"] = {"$nin": exclude_ids}
-        return await self._find_random(filter_query, date_field="upload_date")
+        return await self._find_random(filter_query)
