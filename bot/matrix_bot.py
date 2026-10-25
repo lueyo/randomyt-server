@@ -2,7 +2,7 @@ import re
 import asyncio
 import aiohttp
 from typing import Optional
-from nio import AsyncClient, MatrixRoom, RoomMessageText
+from nio import AsyncClient, MatrixRoom, RoomMessageText, SyncError
 
 API_BASE_URL = "https://randomyt-server.vps.lueyo.es"
 
@@ -159,9 +159,15 @@ def set_global_client(client):
     _global_client = client
 
 
+async def matrix_sync_error_callback(response: SyncError):
+    """Registra el motivo real cuando /sync devuelve una respuesta inválida."""
+    status = response.status_code or "unknown"
+    print(f"⚠️ Matrix sync failed [{status}]: {response.message}. Retrying...")
+
+
 async def matrix_bot_main(homeserver: str, user_id: str, access_token: str):
     global global_client, sync_token
-    
+
     client = AsyncClient(homeserver, user_id)
     client.http_session = aiohttp.ClientSession()
     
@@ -171,15 +177,29 @@ async def matrix_bot_main(homeserver: str, user_id: str, access_token: str):
     global_client = client
     
     client.add_event_callback(message_callback, RoomMessageText)
+    client.add_response_callback(matrix_sync_error_callback, SyncError)
     
     print(f"Connecting to Matrix as {user_id}...")
-    await client.sync()
+    first_sync = await client.sync(timeout=0)
+    if isinstance(first_sync, SyncError):
+        print(
+            f"⚠️ Initial Matrix sync failed [{first_sync.status_code}]: "
+            f"{first_sync.message}"
+        )
     sync_token = "initialized"
     
     print("Matrix bot ready!")
     
     while True:
-        await client.sync_forever(timeout=30000)
+        try:
+            # sync_forever ya mantiene su propio bucle; si sale (error o stop),
+            # reintentamos con una espera para no martillear al homeserver.
+            await client.sync_forever(timeout=30000)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"⚠️ Matrix sync loop stopped: {e!r}. Retrying in 5s...")
+            await asyncio.sleep(5)
 
 
 class MatrixBot:

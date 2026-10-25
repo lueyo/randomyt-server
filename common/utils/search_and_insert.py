@@ -138,20 +138,28 @@ async def buscar_y_procesar(palabra_clave, videoService):
     
     links_resultantes = []
 
+    # Las estrategias usan librerías bloqueantes (yt-dlp, youtube-search, requests).
+    # Se ejecutan en un hilo aparte para no bloquear el event loop (bot de Matrix, API...).
     try:
-        links_resultantes = estrategia_ytdlp(palabra_clave, SEARCH_NUMBER)
+        links_resultantes = await asyncio.to_thread(
+            estrategia_ytdlp, palabra_clave, SEARCH_NUMBER
+        )
     except Exception:
         pass
 
     if not links_resultantes:
         try:
-            links_resultantes = estrategia_libreria_python(palabra_clave, SEARCH_NUMBER)
+            links_resultantes = await asyncio.to_thread(
+                estrategia_libreria_python, palabra_clave, SEARCH_NUMBER
+            )
         except Exception:
             pass
 
     if not links_resultantes:
         try:
-            links_resultantes = estrategia_invidious(palabra_clave, SEARCH_NUMBER)
+            links_resultantes = await asyncio.to_thread(
+                estrategia_invidious, palabra_clave, SEARCH_NUMBER
+            )
         except Exception:
             pass
 
@@ -167,7 +175,7 @@ async def buscar_y_procesar(palabra_clave, videoService):
 
 # --- 5. GESTOR DE BUCLE Y LECTURA DE ARCHIVO ---
 
-def procesar_lista_palabras(ruta_archivo):
+def procesar_lista_palabras(ruta_archivo, videoService):
     """
     Lee un archivo de texto línea por línea y realiza la búsqueda para cada término.
     """
@@ -192,7 +200,7 @@ def procesar_lista_palabras(ruta_archivo):
 
     for palabra in palabras_clave:
         print(f"\n📆 >>> Procesando búsqueda: '{palabra}'")
-        buscar_y_procesar(palabra)
+        asyncio.run(buscar_y_procesar(palabra, videoService))
         print("⏳ Esperando 2 segundos antes de la siguiente búsqueda...")
         time.sleep(2)
 

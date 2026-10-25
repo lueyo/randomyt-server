@@ -1,3 +1,5 @@
+import asyncio
+
 from common.config import LIMIT_VIEWS
 from common.utils.genid import gen_id
 from common.utils.scriptscrapper import obtener_datos_youtube
@@ -106,8 +108,8 @@ class VideoService(IVideoService):
             raise ValueError("Video is in database")
 
         try:
-            # Scrape data from YouTube
-            datos = obtener_datos_youtube(request.video_id)
+            # Scrape data from YouTube (bloqueante -> fuera del event loop)
+            datos = await asyncio.to_thread(obtener_datos_youtube, request.video_id)
         except Exception:
             raise ValueError("Failed to retrieve video information")
 
