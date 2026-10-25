@@ -159,14 +159,41 @@ def set_global_client(client):
     _global_client = client
 
 
+# Errores de /sync que no se arreglan reintentando (token inválido, caducado,
+# usuario desactivado...). En ese caso se detiene el bot en vez de reintentar.
+FATAL_SYNC_ERRORS = {
+    "M_UNKNOWN_TOKEN",
+    "M_MISSING_TOKEN",
+    "M_FORBIDDEN",
+    "M_USER_DEACTIVATED",
+}
+
+_fatal_sync_error = False
+
+
 async def matrix_sync_error_callback(response: SyncError):
     """Registra el motivo real cuando /sync devuelve una respuesta inválida."""
+    global _fatal_sync_error
+
     status = response.status_code or "unknown"
+
+    if status in FATAL_SYNC_ERRORS:
+        _fatal_sync_error = True
+        print(
+            f"❌ Matrix sync fatal error [{status}]: {response.message}. "
+            "Stopping bot (revisa MATRIX_YT_RANDOM_TOKEN)."
+        )
+        if global_client is not None:
+            global_client.stop_sync_forever()
+        return
+
     print(f"⚠️ Matrix sync failed [{status}]: {response.message}. Retrying...")
 
 
 async def matrix_bot_main(homeserver: str, user_id: str, access_token: str):
-    global global_client, sync_token
+    global global_client, sync_token, _fatal_sync_error
+
+    _fatal_sync_error = False
 
     client = AsyncClient(homeserver, user_id)
     client.http_session = aiohttp.ClientSession()
@@ -182,10 +209,13 @@ async def matrix_bot_main(homeserver: str, user_id: str, access_token: str):
     print(f"Connecting to Matrix as {user_id}...")
     first_sync = await client.sync(timeout=0)
     if isinstance(first_sync, SyncError):
-        print(
-            f"⚠️ Initial Matrix sync failed [{first_sync.status_code}]: "
-            f"{first_sync.message}"
-        )
+        await matrix_sync_error_callback(first_sync)
+        if _fatal_sync_error:
+            print("Matrix bot not started: access token is invalid or expired.")
+            if client.http_session:
+                await client.http_session.close()
+            await client.close()
+            return
     sync_token = "initialized"
     
     print("Matrix bot ready!")
@@ -200,6 +230,13 @@ async def matrix_bot_main(homeserver: str, user_id: str, access_token: str):
         except Exception as e:
             print(f"⚠️ Matrix sync loop stopped: {e!r}. Retrying in 5s...")
             await asyncio.sleep(5)
+            continue
+
+        if _fatal_sync_error:
+            print("Matrix bot stopped: access token is invalid or expired.")
+            return
+
+        await asyncio.sleep(5)
 
 
 class MatrixBot:
